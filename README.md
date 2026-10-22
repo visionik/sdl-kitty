@@ -10,20 +10,26 @@ export SDL_VIDEO_DRIVER=kitty
 
 ## Status
 
-Phase 0/1 spike: window surface present + basic keyboard. Not upstreamed yet.
+Phase 2: window surface present, keyboard, mouse, zlib/SHM transmit, resize. Not upstreamed yet.
 
 | Feature | Status |
 |---|---|
 | `SDL_VIDEO_DRIVER=kitty` | yes (forced; never auto-selected) |
-| Window surface / software present | yes (RGB24 over APC, chunked base64) |
-| Keyboard (raw tty) | minimal (ASCII + q/Esc quit) |
-| Mouse | no |
-| Shared memory (`t=s`) | no |
+| Window surface / software present | yes (RGB24 over APC) |
+| Transmit: shared memory (`t=s`) | yes (default; falls back) |
+| Transmit: zlib (`o=z`) | yes (fallback after SHM) |
+| Transmit: direct base64 (`t=d`) | yes (final fallback) |
+| Keyboard (raw + Kitty CSI u) | minimal (ASCII + mapped keys; q/Esc quit) |
+| Mouse (SGR 1006) | yes (motion, buttons, wheel) |
+| Resize (`SIGWINCH`) | yes |
+| Double-buffer image ids | yes |
 | OpenGL | no |
+
+Override transmit mode with `SDL_KITTY_TRANSMIT=shm|zlib|direct`.
 
 ## Build
 
-Requires CMake ≥ 3.16, a C toolchain, and a Kitty-capable terminal to run demos.
+Requires CMake ≥ 3.16, a C toolchain, zlib, and a Kitty-capable terminal to run demos.
 
 ```bash
 cmake -S . -B build
@@ -39,6 +45,7 @@ Must be run in a real terminal (not a dumb pipe):
 ```bash
 ./scripts/run-with-kitty-sdl.sh ./build/solid_present
 ./scripts/run-with-kitty-sdl.sh ./build/checker_keyboard
+./scripts/run-with-kitty-sdl.sh ./build/mouse_paint
 ```
 
 Or directly if the examples are linked to the built lib:
@@ -46,6 +53,8 @@ Or directly if the examples are linked to the built lib:
 ```bash
 SDL_VIDEO_DRIVER=kitty ./build/solid_present
 ```
+
+`mouse_paint`: left-drag paints, right-click clears, wheel cycles colors, q/Esc quits.
 
 ## DynAPI override
 
