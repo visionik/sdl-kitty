@@ -165,9 +165,13 @@ SDL is used for events/window size only; graphics APC goes to stdout. Run:
 
 Atlas multi-placement stays **demo-only** (`atlas_sprites` + `kitty_apc`); no public Kitty placement API (normal SDL3 surface path only).
 
+## Fireworks demo
+
+**Example:** `examples/fireworks.c` — rockets + particle bursts over `examples/assets/lake_night.png` (`UpdateWindowSurfaceRects`, dirty BW). Click or space forces a burst; q/Esc quits.
+
 ## Later steps (not done)
 
 | Step | Summary |
 |---|---|
 | Prefer dirty BW defaults / more aggressive `a=f` | Optional |
-| Fireworks / other soft-surface demos | Optional |
+| Other soft-surface demos | Optional |

@@ -70,6 +70,8 @@ SDL_VIDEO_DRIVER=kitty ./build/solid_present
 
 `alpha_blit` sets `SDL_KITTY_FB_ALPHA=1` (ARGB window FB + Kitty `f=32`) and draws translucent discs over a checker grid.
 
+`fireworks` launches colored rockets over `examples/assets/lake_night.png` (dirty-rect presents; click/space for extra bursts).
+
 ## DynAPI override
 
 Point an existing SDL3 binary at this build:

@@ -41,6 +41,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
 
   add_executable(alpha_blit examples/alpha_blit.c)
   target_link_libraries(alpha_blit PRIVATE SDL3::SDL3)
+
+  add_executable(fireworks examples/fireworks.c)
+  target_link_libraries(fireworks PRIVATE SDL3::SDL3)
 endif()
 
 enable_testing()
