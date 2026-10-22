@@ -128,9 +128,16 @@ Still ping-pongs image ids 1↔2 and deletes the previous (flicker-safe). Same-`
 
 Debug presents log `pingpong=0|1`.
 
+## Fixed FB size (done)
+
+**Verified:** 2026-10-22 — `SDL_KITTY_FB_FIXED=800x450` + resize logged `action=replace fb 800x450->800x450` (grid changed); colors kept filling.
+
+**Env:** `SDL_KITTY_FB_FIXED=WxH` sets an **exact** framebuffer size after the CSI size query. Stretch (`PLACE_CELLS=1`) still fills the pane via `c`/`r`.
+
+On WINCH, if only the cell grid changes, Step 4 logs `resize action=replace` and sends `a=p` (no pixel re-upload). Aspect-fit `SDL_KITTY_FB_MAX` still changes FB size when the pane aspect changes, so replace is rarer without FIXED.
+
 ## Later steps (not done)
 
 | Step | Summary |
 |---|---|
-| Fixed FB mode | `SDL_KITTY_FB_FIXED` so resize `replace` fires more often |
 | Atlas / multi-placement | Optional multi-sprite path |
