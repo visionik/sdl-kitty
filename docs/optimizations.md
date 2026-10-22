@@ -118,8 +118,19 @@ Still ping-pongs image ids 1↔2 and deletes the previous (flicker-safe). Same-`
 
 **Visual:** Run `solid_present` or fullpane; resize the Rex pane while capped FB stays put — expect `action=replace`, no blank, mouse still maps after full resize when FB does change.
 
+## Same-`(i,p)` replace (done)
+
+**Verified:** 2026-10-22 — `dvd_sprite` log `live=1 pingpong=0` + `dirty_bw`; visually clean.
+
+**Default:** full `a=T` reuses `live_image_id` with `p=1` (no per-frame delete). Dirty BW already patched that id.
+
+**Kill-switch:** `SDL_KITTY_PINGPONG=1` restores the old swap ids 1↔2 + delete previous.
+
+Debug presents log `pingpong=0|1`.
+
 ## Later steps (not done)
 
 | Step | Summary |
 |---|---|
-| 5–6 | Stronger partial / atlas (optional) |
+| Fixed FB mode | `SDL_KITTY_FB_FIXED` so resize `replace` fires more often |
+| Atlas / multi-placement | Optional multi-sprite path |

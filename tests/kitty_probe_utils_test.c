@@ -101,6 +101,14 @@ static void test_select_dirty_bw(void)
     expect_true(!KITTY_SelectDirtyBW("off", true), "env off forces off");
 }
 
+static void test_select_pingpong(void)
+{
+    expect_true(!KITTY_SelectPingPong(NULL), "default replace (no pingpong)");
+    expect_true(!KITTY_SelectPingPong("0"), "PINGPONG=0");
+    expect_true(KITTY_SelectPingPong("1"), "PINGPONG=1");
+    expect_true(!KITTY_SelectPingPong("off"), "PINGPONG=off");
+}
+
 static void test_select_modes(void)
 {
     expect_int((int)KITTY_SelectTransmitMode("direct", "kitty", true, true),
@@ -134,6 +142,7 @@ int main(int argc, char **argv)
     test_format_place_keys();
     test_classify_resize();
     test_select_dirty_bw();
+    test_select_pingpong();
     test_select_modes();
     SDL_Quit();
     if (failures) {
