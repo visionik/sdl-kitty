@@ -1,0 +1,214 @@
+/* Unit tests for SDL_kittyrect helpers (Step 1a). No tty required. */
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define KITTY_RECT_STANDALONE 1
+#include "../third_party/SDL/src/video/kitty/SDL_kittyrect.h"
+
+static int failures;
+
+static void expect_true(int cond, const char *msg)
+{
+    if (!cond) {
+        fprintf(stderr, "FAIL: %s\n", msg);
+        failures++;
+    }
+}
+
+static void expect_int(int got, int want, const char *msg)
+{
+    if (got != want) {
+        fprintf(stderr, "FAIL: %s (got %d want %d)\n", msg, got, want);
+        failures++;
+    }
+}
+
+static void expect_float_near(float got, float want, float eps, const char *msg)
+{
+    const float d = got > want ? got - want : want - got;
+    if (d > eps) {
+        fprintf(stderr, "FAIL: %s (got %f want %f)\n", msg, (double)got, (double)want);
+        failures++;
+    }
+}
+
+static void test_union_basic(void)
+{
+    SDL_Rect rects[2] = { { 10, 10, 20, 20 }, { 25, 25, 20, 20 } };
+    SDL_Rect out;
+    expect_true(KITTY_UnionRects(100, 100, rects, 2, &out), "union two rects");
+    expect_int(out.x, 10, "union.x");
+    expect_int(out.y, 10, "union.y");
+    expect_int(out.w, 35, "union.w");
+    expect_int(out.h, 35, "union.h");
+}
+
+static void test_union_clamp(void)
+{
+    SDL_Rect rects[1] = { { -10, -5, 30, 20 } };
+    SDL_Rect out;
+    expect_true(KITTY_UnionRects(100, 80, rects, 1, &out), "union clamp");
+    expect_int(out.x, 0, "clamp.x");
+    expect_int(out.y, 0, "clamp.y");
+    expect_int(out.w, 20, "clamp.w");
+    expect_int(out.h, 15, "clamp.h");
+}
+
+static void test_union_empty_list_is_full(void)
+{
+    SDL_Rect out;
+    expect_true(KITTY_UnionRects(64, 48, NULL, 0, &out), "null rects -> full");
+    expect_int(out.w, 64, "full.w");
+    expect_int(out.h, 48, "full.h");
+}
+
+static void test_union_outside_fails(void)
+{
+    SDL_Rect rects[1] = { { 200, 200, 10, 10 } };
+    SDL_Rect out;
+    expect_true(!KITTY_UnionRects(100, 100, rects, 1, &out), "outside -> false");
+}
+
+static void test_coverage(void)
+{
+    SDL_Rect u = { 0, 0, 50, 50 };
+    expect_float_near(KITTY_CoverageRatio(100, 100, &u), 0.25f, 0.001f, "25% coverage");
+    u.w = 100;
+    u.h = 100;
+    expect_float_near(KITTY_CoverageRatio(100, 100, &u), 1.0f, 0.001f, "100% coverage");
+}
+
+static void test_choose_mode(void)
+{
+    SDL_Rect small = { 0, 0, 10, 10 };
+    SDL_Rect dirty;
+    KITTY_PresentConvertMode mode;
+
+    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY");
+    mode = KITTY_ChooseConvertMode(100, 100, &small, 1, true, &dirty);
+    expect_int((int)mode, (int)KITTY_CONVERT_DIRTY, "small dirty when valid scratch");
+    expect_int(dirty.w, 10, "dirty.w");
+
+    mode = KITTY_ChooseConvertMode(100, 100, &small, 1, false, &dirty);
+    expect_int((int)mode, (int)KITTY_CONVERT_FULL, "invalid scratch -> full");
+
+    {
+        SDL_Rect big = { 0, 0, 80, 80 }; /* 64% */
+        mode = KITTY_ChooseConvertMode(100, 100, &big, 1, true, &dirty);
+        expect_int((int)mode, (int)KITTY_CONVERT_FULL, "high coverage -> full");
+    }
+
+    SDL_setenv_unsafe("SDL_KITTY_DIRTY", "0", 1);
+    mode = KITTY_ChooseConvertMode(100, 100, &small, 1, true, &dirty);
+    expect_int((int)mode, (int)KITTY_CONVERT_FULL, "SDL_KITTY_DIRTY=0 -> full");
+    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY");
+}
+
+static void test_dirty_bw_flag(void)
+{
+    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY_BW");
+    expect_true(!KITTY_DirtyBWEnabled(), "DIRTY_BW default off");
+    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "1", 1);
+    expect_true(KITTY_DirtyBWEnabled(), "DIRTY_BW=1 on");
+    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "off", 1);
+    expect_true(!KITTY_DirtyBWEnabled(), "DIRTY_BW=off");
+    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY_BW");
+}
+
+static void test_pack_rgb_rect(void)
+{
+    Uint8 scratch[4 * 4 * 3];
+    Uint8 out[2 * 2 * 3];
+    size_t out_len = 0;
+    SDL_Rect rect = { 1, 1, 2, 2 };
+    int i;
+
+    memset(scratch, 0, sizeof(scratch));
+    /* Put distinct RGB at (1,1),(2,1),(1,2),(2,2) */
+    scratch[(1 * 4 + 1) * 3 + 0] = 10;
+    scratch[(1 * 4 + 1) * 3 + 1] = 20;
+    scratch[(1 * 4 + 1) * 3 + 2] = 30;
+    scratch[(1 * 4 + 2) * 3 + 0] = 11;
+    scratch[(1 * 4 + 2) * 3 + 1] = 21;
+    scratch[(1 * 4 + 2) * 3 + 2] = 31;
+    scratch[(2 * 4 + 1) * 3 + 0] = 12;
+    scratch[(2 * 4 + 1) * 3 + 1] = 22;
+    scratch[(2 * 4 + 1) * 3 + 2] = 32;
+    scratch[(2 * 4 + 2) * 3 + 0] = 13;
+    scratch[(2 * 4 + 2) * 3 + 1] = 23;
+    scratch[(2 * 4 + 2) * 3 + 2] = 33;
+
+    expect_true(KITTY_PackRGBRect(scratch, 4, 4, &rect, out, sizeof(out), &out_len), "pack ok");
+    expect_int((int)out_len, 12, "pack len 2x2x3");
+    expect_int(out[0], 10, "pack[0]");
+    expect_int(out[3], 11, "pack[3]");
+    expect_int(out[6], 12, "pack[6]");
+    expect_int(out[9], 13, "pack[9]");
+    for (i = 0; i < 12; ++i) {
+        /* silence unused if expects pass */
+    }
+}
+
+static void test_convert_preserves_outside(void)
+{
+    SDL_Surface *surf = SDL_CreateSurface(8, 8, SDL_PIXELFORMAT_XRGB8888);
+    Uint8 *scratch;
+    SDL_Rect rect = { 2, 2, 2, 2 };
+    int i;
+    expect_true(surf != NULL, "create surface");
+    scratch = (Uint8 *)calloc(8u * 8u * 3u, 1);
+    expect_true(scratch != NULL, "scratch alloc");
+
+    /* Fill scratch with 0x11 marker, surface with red in dirty rect only. */
+    memset(scratch, 0x11, 8u * 8u * 3u);
+    SDL_FillSurfaceRect(surf, NULL, SDL_MapSurfaceRGB(surf, 0, 0, 0));
+    SDL_FillSurfaceRect(surf, &rect, SDL_MapSurfaceRGB(surf, 255, 0, 0));
+
+    expect_true(KITTY_ConvertSurfaceRectToRGB(surf, &rect, scratch), "convert dirty");
+
+    /* Outside (0,0) still marker */
+    expect_int(scratch[0], 0x11, "outside R preserved");
+    expect_int(scratch[1], 0x11, "outside G preserved");
+    expect_int(scratch[2], 0x11, "outside B preserved");
+
+    /* Inside (2,2) is red */
+    i = (2 * 8 + 2) * 3;
+    expect_int(scratch[i + 0], 255, "inside R");
+    expect_int(scratch[i + 1], 0, "inside G");
+    expect_int(scratch[i + 2], 0, "inside B");
+
+    free(scratch);
+    SDL_DestroySurface(surf);
+}
+
+int main(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    if (!SDL_Init(0)) {
+        /* SDL3 may need INIT_VIDEO for surfaces on some builds; try video. */
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
+            fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+            return 1;
+        }
+    }
+
+    test_union_basic();
+    test_union_clamp();
+    test_union_empty_list_is_full();
+    test_union_outside_fails();
+    test_coverage();
+    test_choose_mode();
+    test_dirty_bw_flag();
+    test_pack_rgb_rect();
+    test_convert_preserves_outside();
+
+    SDL_Quit();
+    if (failures) {
+        fprintf(stderr, "%d failure(s)\n", failures);
+        return 1;
+    }
+    printf("kitty_rect_utils_test: OK\n");
+    return 0;
+}

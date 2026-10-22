@@ -8,6 +8,14 @@ Real SDL apps can run inside Kitty, Ghostty, WezTerm, or Rex with:
 export SDL_VIDEO_DRIVER=kitty
 ```
 
+## Docs
+
+- [Framebuffer placement, mouse, and Rex lessons](docs/framebuffer-placement-and-mouse.md) — CSI sizing, FB cap, stretch vs 1:1, mouse mapping, host quirks
+- [Capability optimizations](docs/optimizations.md) — dirty rects and later protocol upgrades
+- [Design notes](docs/design.md)
+
+Working `mouse_paint` snapshots: `examples/mouse_paint_fullpane/`, `examples/mouse_paint_1to1/`.
+
 ## Status
 
 Phase 2: window surface present, keyboard, mouse, zlib/SHM transmit, resize. Not upstreamed yet.

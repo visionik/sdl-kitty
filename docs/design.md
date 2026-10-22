@@ -1,5 +1,8 @@
 # sdl-kitty design notes
 
+For placement, FB capping, and mouse mapping (including Rex lessons), see
+[framebuffer-placement-and-mouse.md](framebuffer-placement-and-mouse.md).
+
 See the session plan for the full roadmap. Short form:
 
 - **API:** SDL3 public video/renderer API
