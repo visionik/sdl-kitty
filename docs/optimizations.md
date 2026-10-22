@@ -169,9 +169,13 @@ Atlas multi-placement stays **demo-only** (`atlas_sprites` + `kitty_apc`); no pu
 
 **Example:** `examples/fireworks.c` — rockets + particle bursts over `examples/assets/lake_night.png` (`UpdateWindowSurfaceRects`, dirty BW). Click or space forces a burst; q/Esc quits.
 
-## Later steps (not done)
+## Later steps
 
-| Step | Summary |
+| Step | Status |
 |---|---|
-| Prefer dirty BW defaults / more aggressive `a=f` | Optional |
+| Prefer dirty BW defaults / more aggressive `a=f` | **Skipped** — probe-default + always-sparse is enough |
 | Other soft-surface demos | Optional |
+| DynAPI / packaging polish | Optional |
+| Upstream checklist / PR | Optional |
+
+**FB model only** (product choice): improve `GetWindowSurface` / `UpdateWindowSurface` presents. Deferred Kitty compositor features: driver atlas/multi-placement API, animation-compose video API, relative placements, Unicode placeholders, z-index/under-text, shared `I=` ids. `atlas_sprites` stays a standalone demo.
