@@ -66,6 +66,8 @@ SDL_VIDEO_DRIVER=kitty ./build/solid_present
 
 `dvd_bounce` draws the logo each frame; `dvd_sprite` blits a logo surface over `examples/assets/dvd_player_iso.png` (isometric DVD player backdrop; color-mod on bounce; dirty BW when the `a=f` probe succeeds).
 
+`atlas_sprites` uploads a DVD+Blu-ray sprite sheet once (`a=t`) and bounces 10 cropped placements (5+5); pairwise collide pulses only the hitters for 10s.
+
 ## DynAPI override
 
 Point an existing SDL3 binary at this build:

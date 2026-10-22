@@ -136,8 +136,24 @@ Debug presents log `pingpong=0|1`.
 
 On WINCH, if only the cell grid changes, Step 4 logs `resize action=replace` and sends `a=p` (no pixel re-upload). Aspect-fit `SDL_KITTY_FB_MAX` still changes FB size when the pane aspect changes, so replace is rarer without FIXED.
 
+## Atlas / multi-placement (demo)
+
+**Example:** `examples/atlas_sprites.c` + `examples/kitty_apc.c`
+
+1. Build a 2-row sprite sheet (DVD + Blu-ray × 8 colors)  
+2. Upload once with `a=t` (no place)  
+3. Bounce 10 placements (5 DVD + 5 Blu-ray, `p=1…10`) with crop + sub-cell `X`/`Y`  
+4. Random start positions, velocities, and colors; wall hits advance color when not pulsing  
+5. Pairwise AABB collide (edge-triggered): **only the hitters** pulse colors for 10s
+
+SDL is used for events/window size only; graphics APC goes to stdout. Run:
+
+```bash
+./build/atlas_sprites
+```
+
 ## Later steps (not done)
 
 | Step | Summary |
 |---|---|
-| Atlas / multi-placement | Optional multi-sprite path |
+| Promote atlas helpers into the SDL kitty driver | Optional |

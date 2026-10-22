@@ -29,6 +29,10 @@ if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(dvd_sprite examples/dvd_sprite.c)
   target_link_libraries(dvd_sprite PRIVATE SDL3::SDL3)
 
+  add_executable(atlas_sprites examples/atlas_sprites.c examples/kitty_apc.c)
+  target_include_directories(atlas_sprites PRIVATE "${CMAKE_SOURCE_DIR}/examples")
+  target_link_libraries(atlas_sprites PRIVATE SDL3::SDL3)
+
   add_executable(starfield examples/starfield.c)
   target_link_libraries(starfield PRIVATE SDL3::SDL3)
 
