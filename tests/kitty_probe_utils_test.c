@@ -92,6 +92,15 @@ static void test_classify_resize(void)
                (int)KITTY_RESIZE_FULL, "FB size changed -> full");
 }
 
+static void test_select_dirty_bw(void)
+{
+    expect_true(!KITTY_SelectDirtyBW(NULL, false), "unset + no probe -> off");
+    expect_true(KITTY_SelectDirtyBW(NULL, true), "unset + probe ok -> on");
+    expect_true(KITTY_SelectDirtyBW("1", false), "env 1 forces on");
+    expect_true(!KITTY_SelectDirtyBW("0", true), "env 0 forces off");
+    expect_true(!KITTY_SelectDirtyBW("off", true), "env off forces off");
+}
+
 static void test_select_modes(void)
 {
     expect_int((int)KITTY_SelectTransmitMode("direct", "kitty", true, true),
@@ -124,6 +133,7 @@ int main(int argc, char **argv)
     test_parse_none();
     test_format_place_keys();
     test_classify_resize();
+    test_select_dirty_bw();
     test_select_modes();
     SDL_Quit();
     if (failures) {

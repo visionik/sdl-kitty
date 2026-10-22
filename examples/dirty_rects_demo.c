@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     }
     fprintf(stderr, "video driver: %s\n", SDL_GetCurrentVideoDriver());
     fprintf(stderr, "dirty_rects_demo: bounce=small rect updates; space=fullscreen flash; q quits\n");
-    fprintf(stderr, "  SDL_KITTY_DIRTY=0 disables dirty CPU; SDL_KITTY_DIRTY_BW=1 enables a=f bandwidth path\n");
+    fprintf(stderr, "  SDL_KITTY_DIRTY=0 disables dirty CPU; dirty BW follows a=f probe\n");
 
     window = SDL_CreateWindow("sdl-kitty dirty rects", 0, 0, 0);
     if (!window) {

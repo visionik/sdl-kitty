@@ -105,17 +105,6 @@ static void test_choose_mode(void)
     SDL_unsetenv_unsafe("SDL_KITTY_DIRTY");
 }
 
-static void test_dirty_bw_flag(void)
-{
-    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY_BW");
-    expect_true(!KITTY_DirtyBWEnabled(), "DIRTY_BW default off");
-    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "1", 1);
-    expect_true(KITTY_DirtyBWEnabled(), "DIRTY_BW=1 on");
-    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "off", 1);
-    expect_true(!KITTY_DirtyBWEnabled(), "DIRTY_BW=off");
-    SDL_unsetenv_unsafe("SDL_KITTY_DIRTY_BW");
-}
-
 static void test_pack_rgb_rect(void)
 {
     Uint8 scratch[4 * 4 * 3];
@@ -200,7 +189,6 @@ int main(int argc, char **argv)
     test_union_outside_fails();
     test_coverage();
     test_choose_mode();
-    test_dirty_bw_flag();
     test_pack_rgb_rect();
     test_convert_preserves_outside();
 

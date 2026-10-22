@@ -37,7 +37,7 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 ## Step 1b — Bandwidth partial (`a=f`) (done, default off)
 
-**Verified:** 2026-10-22 — unit tests pass; Rex `dirty_rects_demo` with `DIRTY_BW=1` shows `mode=dirty_bw` and feels faster; fullpane + 1to1 still align with the flag on (those demos full-update every frame).
+**Verified:** 2026-10-22 — unit tests; Rex `dirty_bw` with forced env; later same day: init `a=f` probe (`frame_edit_probe ok -> dirty_bw=on`) enables BW without env; `dvd_sprite` uses `mode=dirty_bw`.
 
 **Goal:** When `SDL_KITTY_DIRTY_BW=1` and a live image exists, sparse updates send only the dirty bbox via Kitty animation frame edit:
 
@@ -49,7 +49,9 @@ a=f,f=24,t=d,i=<live>,r=1,X=1,x=…,y=…,s=…,v=…
 
 **Fallback:** any failure → full-frame `a=T` (same as 1a wire path).
 
-**Default:** off (Rex animation support is unproven). Enable explicitly for experiments.
+**Default:** follows an init **`a=f` frame-edit probe** (`frame_edit_ok`). Explicit APC `OK` or a silent reply (no error — Rex) counts as success; APC error disables BW. `SDL_KITTY_DIRTY_BW=0|1` still forces off/on.
+
+Debug: `frame_edit_probe ok|fail -> dirty_bw=on|off`
 
 **Debug:** `mode=dirty_bw` with `upload_px == convert_px` (much smaller than full FB).
 

@@ -64,6 +64,8 @@ SDL_VIDEO_DRIVER=kitty ./build/solid_present
 
 `mouse_paint`: left-drag paints, right-click clears, wheel cycles colors, q/Esc quits.
 
+`dvd_bounce` draws the logo each frame; `dvd_sprite` blits a logo surface over `examples/assets/dvd_player_iso.png` (isometric DVD player backdrop; color-mod on bounce; dirty BW when the `a=f` probe succeeds).
+
 ## DynAPI override
 
 Point an existing SDL3 binary at this build:
@@ -78,6 +80,7 @@ export SDL_VIDEO_DRIVER=kitty
 
 - `third_party/SDL` — SDL3 + `src/video/kitty/` driver (eventual upstream PR surface)
 - `examples/` — smoke demos
+- `tests/` — unit tests for kitty helpers (`ctest -R kitty_`)
 - `scripts/run-with-kitty-sdl.sh` — env helper
 - `docs/` — design notes (see plan)
 
