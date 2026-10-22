@@ -56,26 +56,40 @@ static void test_format_place_keys(void)
     char buf[256];
     int n;
 
-    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 'd', 1, 100, 50, 80, 24, false, NULL, 0);
+    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 'd', 1, 100, 50, 80, 24, false, NULL, 0, 24);
     expect_true(n > 0, "format direct stretch");
     expect_true(strstr(buf, "C=1") != NULL, "has C=1");
     expect_true(strstr(buf, "N=1") != NULL, "has N=1");
     expect_true(strstr(buf, "p=1") != NULL, "has p=1");
     expect_true(strstr(buf, "c=80") != NULL, "has c=80");
     expect_true(strstr(buf, "r=24") != NULL, "has r=24");
+    expect_true(strstr(buf, "f=24") != NULL, "has f=24");
     expect_true(strstr(buf, "m=1") == NULL, "no m=1 when more=false");
 
-    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 'd', 2, 10, 10, 0, 0, true, "o=z", 0);
+    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 'd', 2, 10, 10, 0, 0, true, "o=z", 0, 24);
     expect_true(n > 0, "format direct 1:1 zlib more");
     expect_true(strstr(buf, "o=z") != NULL, "has o=z");
     expect_true(strstr(buf, "m=1") != NULL, "has m=1");
     expect_true(strstr(buf, ",c=") == NULL && strstr(buf, "c=") == NULL, "no cell stretch");
 
-    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 's', 3, 8, 8, 40, 20, false, NULL, 192);
+    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 's', 3, 8, 8, 40, 20, false, NULL, 192, 24);
     expect_true(n > 0, "format shm");
     expect_true(strstr(buf, "t=s") != NULL, "t=s");
     expect_true(strstr(buf, "S=192") != NULL, "S=192");
     expect_true(strstr(buf, KITTY_AT_PLACE_KEYS) != NULL, "place keys block");
+
+    n = KITTY_FormatTransmitHeader(buf, sizeof(buf), 'd', 4, 16, 16, 0, 0, false, NULL, 0, 32);
+    expect_true(n > 0, "format rgba");
+    expect_true(strstr(buf, "f=32") != NULL, "has f=32");
+}
+
+static void test_select_fb_alpha(void)
+{
+    expect_true(!KITTY_SelectFbAlpha(NULL), "unset -> off");
+    expect_true(!KITTY_SelectFbAlpha(""), "empty -> off");
+    expect_true(KITTY_SelectFbAlpha("1"), "1 -> on");
+    expect_true(KITTY_SelectFbAlpha("true"), "true -> on");
+    expect_true(!KITTY_SelectFbAlpha("0"), "0 -> off");
 }
 
 static void test_classify_resize(void)
@@ -140,6 +154,7 @@ int main(int argc, char **argv)
     test_parse_wrong_id();
     test_parse_none();
     test_format_place_keys();
+    test_select_fb_alpha();
     test_classify_resize();
     test_select_dirty_bw();
     test_select_pingpong();

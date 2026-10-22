@@ -12,10 +12,10 @@ Gates per step: automated tests **and** Rex visual confirmation.
 
 **Behavior:**
 
-- Retained RGB24 scratch per window (`SDL_WindowData.rgb_scratch`)
-- First present / resize / invalid scratch → full convert (`mode=full`)
-- Later sparse updates → convert only the union of dirty rects (`mode=dirty_cpu`) when coverage &lt; 50%
-- Still transmits the **entire** scratch via `a=T`
+- Retained RGB24/RGBA scratch per window (`SDL_WindowData.rgb_scratch`)
+- First present / resize / invalid scratch → full convert (`mode=full`) then full `a=T`
+- Later updates → convert the dirty union (`mode=dirty_cpu`) at **any** coverage (no 50% cutoff)
+- With dirty BW on + live image → `a=f` the union; full `a=T` only if edit fails
 - Kill-switch: `SDL_KITTY_DIRTY=0`
 
 **Code:** `SDL_kittyrect.c`, `SDL_kittyframebuffer.c`
@@ -27,7 +27,7 @@ cmake --build build -j
 ctest --test-dir build -R kitty_rect_utils_test --output-on-failure
 ```
 
-**Visual:** `build/dirty_rects_demo` with `SDL_KITTY_DEBUG=1` — bouncing rect should log `dirty_cpu`; periodic/fullscreen flash logs `full`. Then re-check fullpane + 1to1 paint.
+**Visual:** `build/dirty_rects_demo` with `SDL_KITTY_DEBUG=1` — bouncing rect should log `dirty_cpu` / `dirty_bw`; `full` only on first frame or failed edit.
 
 **Debug log** (`SDL_KITTY_DEBUG=1` → `/tmp/sdl_kitty_debug.log`):
 
@@ -152,8 +152,22 @@ SDL is used for events/window size only; graphics APC goes to stdout. Run:
 ./build/atlas_sprites
 ```
 
+## RGBA `f=32` (opt-in FB alpha)
+
+**Env:** `SDL_KITTY_FB_ALPHA=1` → window framebuffer is `SDL_PIXELFORMAT_ARGB8888` and presents use Kitty **`f=32`** (R,G,B,A bytes). Default remains XRGB + `f=24` so demos that write `0x00RRGGBB` literals stay opaque.
+
+- Convert/pack: `KITTY_ConvertSurfaceRectToRGBA` / `KITTY_PackRGBARect`
+- Full `a=T` and dirty `a=f` both honor `f=24|32`
+- Bandwidth ≈ +33% when enabled; still behind normal `GetWindowSurface` / `UpdateWindowSurface`
+- Demo: `examples/alpha_blit.c` (sets `FB_ALPHA=1`, translucent discs over a grid)
+
+**Sparse policy:** no coverage threshold — with a live image, dirty unions stay on `a=f` even when large; full `a=T` on first present / resize / failed edit only.
+
+Atlas multi-placement stays **demo-only** (`atlas_sprites` + `kitty_apc`); no public Kitty placement API (normal SDL3 surface path only).
+
 ## Later steps (not done)
 
 | Step | Summary |
 |---|---|
-| Promote atlas helpers into the SDL kitty driver | Optional |
+| Prefer dirty BW defaults / more aggressive `a=f` | Optional |
+| Fireworks / other soft-surface demos | Optional |

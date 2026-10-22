@@ -68,6 +68,8 @@ SDL_VIDEO_DRIVER=kitty ./build/solid_present
 
 `atlas_sprites` uploads a DVD+Blu-ray sprite sheet once (`a=t`) and bounces 10 cropped placements (5+5); pairwise collide pulses only the hitters for 10s.
 
+`alpha_blit` sets `SDL_KITTY_FB_ALPHA=1` (ARGB window FB + Kitty `f=32`) and draws translucent discs over a checker grid.
+
 ## DynAPI override
 
 Point an existing SDL3 binary at this build:

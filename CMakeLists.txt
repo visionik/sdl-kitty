@@ -38,6 +38,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
 
   add_executable(dirty_rects_demo examples/dirty_rects_demo.c)
   target_link_libraries(dirty_rects_demo PRIVATE SDL3::SDL3)
+
+  add_executable(alpha_blit examples/alpha_blit.c)
+  target_link_libraries(alpha_blit PRIVATE SDL3::SDL3)
 endif()
 
 enable_testing()

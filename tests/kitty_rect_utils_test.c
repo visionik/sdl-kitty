@@ -94,9 +94,16 @@ static void test_choose_mode(void)
     expect_int((int)mode, (int)KITTY_CONVERT_FULL, "invalid scratch -> full");
 
     {
-        SDL_Rect big = { 0, 0, 80, 80 }; /* 64% */
+        SDL_Rect big = { 0, 0, 80, 80 }; /* 64% — stay dirty for sparse a=f */
         mode = KITTY_ChooseConvertMode(100, 100, &big, 1, true, &dirty);
-        expect_int((int)mode, (int)KITTY_CONVERT_FULL, "high coverage -> full");
+        expect_int((int)mode, (int)KITTY_CONVERT_DIRTY, "high coverage -> dirty");
+        expect_int(dirty.w, 80, "big dirty.w");
+    }
+
+    {
+        SDL_Rect whole = { 0, 0, 100, 100 };
+        mode = KITTY_ChooseConvertMode(100, 100, &whole, 1, true, &dirty);
+        expect_int((int)mode, (int)KITTY_CONVERT_DIRTY, "full-frame union -> dirty");
     }
 
     SDL_setenv_unsafe("SDL_KITTY_DIRTY", "0", 1);
@@ -171,6 +178,58 @@ static void test_convert_preserves_outside(void)
     SDL_DestroySurface(surf);
 }
 
+static void test_pack_rgba_rect(void)
+{
+    Uint8 scratch[4 * 4 * 4];
+    Uint8 out[2 * 2 * 4];
+    size_t out_len = 0;
+    SDL_Rect rect = { 1, 1, 2, 2 };
+
+    memset(scratch, 0, sizeof(scratch));
+    scratch[(1 * 4 + 1) * 4 + 0] = 10;
+    scratch[(1 * 4 + 1) * 4 + 1] = 20;
+    scratch[(1 * 4 + 1) * 4 + 2] = 30;
+    scratch[(1 * 4 + 1) * 4 + 3] = 40;
+    scratch[(1 * 4 + 2) * 4 + 0] = 11;
+    scratch[(1 * 4 + 2) * 4 + 3] = 41;
+    scratch[(2 * 4 + 1) * 4 + 0] = 12;
+    scratch[(2 * 4 + 1) * 4 + 3] = 42;
+    scratch[(2 * 4 + 2) * 4 + 0] = 13;
+    scratch[(2 * 4 + 2) * 4 + 3] = 43;
+
+    expect_true(KITTY_PackRGBARect(scratch, 4, 4, &rect, out, sizeof(out), &out_len), "pack rgba ok");
+    expect_int((int)out_len, 16, "pack rgba len 2x2x4");
+    expect_int(out[0], 10, "rgba pack R");
+    expect_int(out[3], 40, "rgba pack A");
+    expect_int(out[4], 11, "rgba pack next R");
+    expect_int(out[7], 41, "rgba pack next A");
+}
+
+static void test_convert_rgba(void)
+{
+    SDL_Surface *surf = SDL_CreateSurface(4, 4, SDL_PIXELFORMAT_ARGB8888);
+    Uint8 *scratch;
+    SDL_Rect rect = { 1, 1, 1, 1 };
+    int i;
+    expect_true(surf != NULL, "create argb surface");
+    scratch = (Uint8 *)calloc(4u * 4u * 4u, 1);
+    expect_true(scratch != NULL, "rgba scratch");
+
+    SDL_FillSurfaceRect(surf, NULL, SDL_MapSurfaceRGBA(surf, 0, 0, 0, 0));
+    SDL_FillSurfaceRect(surf, &rect, SDL_MapSurfaceRGBA(surf, 255, 128, 64, 200));
+    expect_true(KITTY_ConvertSurfaceRectToRGBA(surf, &rect, scratch), "convert rgba");
+
+    i = (1 * 4 + 1) * 4;
+    expect_int(scratch[i + 0], 255, "rgba R");
+    expect_int(scratch[i + 1], 128, "rgba G");
+    expect_int(scratch[i + 2], 64, "rgba B");
+    expect_int(scratch[i + 3], 200, "rgba A");
+    expect_int(scratch[0], 0, "outside stays 0");
+
+    free(scratch);
+    SDL_DestroySurface(surf);
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -191,6 +250,8 @@ int main(int argc, char **argv)
     test_choose_mode();
     test_pack_rgb_rect();
     test_convert_preserves_outside();
+    test_pack_rgba_rect();
+    test_convert_rgba();
 
     SDL_Quit();
     if (failures) {
