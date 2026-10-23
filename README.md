@@ -11,6 +11,7 @@ export SDL_VIDEO_DRIVER=kitty
 ## Docs
 
 - [Framebuffer placement, mouse, and Rex lessons](docs/framebuffer-placement-and-mouse.md) — CSI sizing, FB cap, stretch vs 1:1, mouse mapping, host quirks
+- [Terminal features & fixes](docs/terminals.md) — per-host profile matrix (Rex / Kitty / Ghostty / WezTerm)
 - [Capability optimizations](docs/optimizations.md) — dirty rects and later protocol upgrades
 - [Design notes](docs/design.md)
 

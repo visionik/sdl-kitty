@@ -2,6 +2,15 @@
 
 Plan: great keyboard for games **and** text apps, verified on **Rex + Ghostty**.
 
+## Ghostty soak (2026-10-23)
+
+`key_probe` on Ghostty.app: digits `5`/`1` (`sc=34`/`30`), arrows, Space, Enter, `z`/`x`/`c`, `q` — all CSI-u press+release. Quit via `q` works. Focus gained/lost chatter at startup is harmless noise (same class as Rex).
+
+## Kitty.app soak (2026-10-23)
+
+Caps: `a=q` / `a=f` OK; sdl-kitty chose `shm` + `dirty_bw=on`, fb≈3360×2100.  
+`key_probe`: `5`/`1`, arrows, `z`/`x`/`c`, `q` — CSI-u press+release (same as Ghostty/Rex).
+
 ## Rex capture (2026-10-23)
 
 With `CSI > 11 u`, physical keys on Rex arrive on stdin as:

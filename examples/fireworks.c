@@ -4,12 +4,55 @@
  * rockets; click or space to force a burst. q / Esc quits.
  */
 #include <SDL3/SDL.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MAX_ROCKETS 8
 #define MAX_PARTICLES 1200
 #define PARTS_PER_BURST 90
+
+/* Kitty graphics owns the tty; banners on stderr flash through the pane.
+ * Skip routine logs when stderr is a tty unless SDL_KITTY_DEBUG=1, which
+ * writes /tmp/fireworks.log instead. Redirected stderr (2>file) still works. */
+static FILE *g_demo_log;
+
+static void demo_log_open(void)
+{
+    const char *dbg = SDL_getenv("SDL_KITTY_DEBUG");
+    if (dbg && dbg[0] && dbg[0] != '0') {
+        g_demo_log = fopen("/tmp/fireworks.log", "w");
+        if (g_demo_log) {
+            setvbuf(g_demo_log, NULL, _IOLBF, 0);
+            return;
+        }
+    }
+    if (!isatty(STDERR_FILENO)) {
+        g_demo_log = stderr;
+        setvbuf(stderr, NULL, _IOLBF, 0);
+    }
+}
+
+static void demo_log(const char *fmt, ...)
+{
+    va_list ap;
+    if (!g_demo_log || !fmt) {
+        return;
+    }
+    va_start(ap, fmt);
+    vfprintf(g_demo_log, fmt, ap);
+    va_end(ap);
+    fflush(g_demo_log);
+}
+
+static void demo_log_close(void)
+{
+    if (g_demo_log && g_demo_log != stderr) {
+        fclose(g_demo_log);
+    }
+    g_demo_log = NULL;
+}
 
 typedef struct {
     float x, y, vx, vy;
@@ -221,36 +264,36 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    {
-        FILE *log = fopen("/tmp/fireworks.log", "w");
-        if (log) {
-            fprintf(log, "fireworks: lake backdrop + rockets; click/space burst; q quits\n");
-            fclose(log);
-        }
-    }
+    demo_log_open();
+    demo_log("fireworks: lake backdrop + rockets; click/space burst; q quits\r\n");
 
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "kitty");
-    SDL_setenv_unsafe("SDL_KITTY_TRANSMIT", "direct", 0);
-    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "1", 0);
+    /* Do NOT force SDL_KITTY_TRANSMIT=direct — on Kitty.app that sends huge
+     * multi-chunk base64 APCs and can paint alphabet soup into the tty.
+     * Let the driver probe pick SHM (Kitty) or direct (Rex). */
     SDL_srand(0);
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        demo_log("SDL_Init failed: %s\r\n", SDL_GetError());
+        demo_log_close();
         return 1;
     }
+    demo_log("fireworks: video=%s\r\n", SDL_GetCurrentVideoDriver());
 
     lake_src = load_lake_png();
     if (!lake_src) {
-        fprintf(stderr, "failed to load lake_night.png: %s\n", SDL_GetError());
+        demo_log("failed to load lake_night.png: %s\r\n", SDL_GetError());
         SDL_Quit();
+        demo_log_close();
         return 1;
     }
 
     window = SDL_CreateWindow("sdl-kitty fireworks", 0, 0, 0);
     if (!window) {
-        fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        demo_log("SDL_CreateWindow failed: %s\r\n", SDL_GetError());
         SDL_DestroySurface(lake_src);
         SDL_Quit();
+        demo_log_close();
         return 1;
     }
 
@@ -289,7 +332,7 @@ int main(int argc, char **argv)
 
         surface = SDL_GetWindowSurface(window);
         if (!surface) {
-            fprintf(stderr, "SDL_GetWindowSurface failed: %s\n", SDL_GetError());
+            demo_log("SDL_GetWindowSurface failed: %s\r\n", SDL_GetError());
             break;
         }
         w = surface->w;
@@ -304,7 +347,7 @@ int main(int argc, char **argv)
             bg_h = h;
             need_full = 1;
             if (!lake_scaled) {
-                fprintf(stderr, "scale lake failed: %s\n", SDL_GetError());
+                demo_log("scale lake failed: %s\r\n", SDL_GetError());
                 break;
             }
         }
@@ -381,13 +424,13 @@ int main(int argc, char **argv)
 
         if (need_full) {
             if (!SDL_UpdateWindowSurface(window)) {
-                fprintf(stderr, "SDL_UpdateWindowSurface failed: %s\n", SDL_GetError());
+                demo_log("SDL_UpdateWindowSurface failed: %s\r\n", SDL_GetError());
                 break;
             }
             need_full = 0;
         } else if (dirty.w > 0) {
             if (!SDL_UpdateWindowSurfaceRects(window, &dirty, 1)) {
-                fprintf(stderr, "SDL_UpdateWindowSurfaceRects failed: %s\n", SDL_GetError());
+                demo_log("SDL_UpdateWindowSurfaceRects failed: %s\r\n", SDL_GetError());
                 break;
             }
         }
@@ -400,5 +443,6 @@ done:
     SDL_DestroySurface(lake_src);
     SDL_DestroyWindow(window);
     SDL_Quit();
+    demo_log_close();
     return 0;
 }

@@ -55,7 +55,7 @@ Hosts (observed: Rex) can **drop** huge multi-chunk direct RGB while still ackno
 `KITTY_ApplyFramebufferCap` (`SDL_kittygraphics.c`):
 
 - Env `SDL_KITTY_FB_MAX=W`, `WxH`, or `off` / `none` / `0`
-- If unset and `TERM_PROGRAM=rex` → default **1280×720** (aspect preserved)
+- If unset → host **`KITTY_TerminalProfile.default_fb_max_*`** (Rex/WezTerm/unknown **1280×720**; Kitty/Ghostty **1920×1080**; see [terminals.md](terminals.md))
 - Applies for **both** stretch and 1:1
 
 With stretch, Kitty `c`/`r` still fills the pane from the smaller texture. With 1:1, you see a smaller native rectangle.
