@@ -17,6 +17,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(checker_keyboard examples/checker_keyboard.c)
   target_link_libraries(checker_keyboard PRIVATE SDL3::SDL3)
 
+  add_executable(key_probe examples/key_probe.c)
+  target_link_libraries(key_probe PRIVATE SDL3::SDL3)
+
   add_executable(solid_present examples/solid_present.c)
   target_link_libraries(solid_present PRIVATE SDL3::SDL3)
 

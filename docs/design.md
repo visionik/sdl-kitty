@@ -33,6 +33,8 @@ Uses alternating image ids and deletes the previous id after a successful place 
 
 ## Input
 
-- Kitty keyboard protocol (`CSI > 1 u`) plus ASCII fallback; q/Esc synthesize quit
+- Kitty keyboard protocol (`CSI > 11 u` = disambiguate + event types + all keys as CSI); see `docs/keyboard.md`
+- Rex: read keys from stdin (`tty_in`); write APC/CSI on stdout (`tty_out`)
+- Focus re-announce + min-hold for state-polling games (e.g. MAME); text input TBD (Phase 3)
 - SGR mouse (`1000/1002/1006`): motion, buttons, wheel → SDL mouse events
 - Cell→pixel mapping via `TIOCGWINSZ` cell size
