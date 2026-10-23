@@ -36,5 +36,6 @@ Uses alternating image ids and deletes the previous id after a successful place 
 - Kitty keyboard protocol (`CSI > 11 u` = disambiguate + event types + all keys as CSI); see `docs/keyboard.md`
 - Rex: read keys from stdin (`tty_in`); write APC/CSI on stdout (`tty_out`)
 - Focus re-announce + min-hold for state-polling games (e.g. MAME); text input TBD (Phase 3)
+- FB tile-diff (`SDL_KITTY_FB_DIFF`, default on): when the app presents a near-full surface, 32×32 `memcmp` vs last frame invents a dirty bbox for `a=f` (skip upload if identical; full present if coverage ≥ `SDL_KITTY_FB_DIFF_COVER`, default 0.45)
 - SGR mouse (`1000/1002/1006`): motion, buttons, wheel → SDL mouse events
 - Cell→pixel mapping via `TIOCGWINSZ` cell size

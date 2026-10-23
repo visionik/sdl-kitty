@@ -230,6 +230,44 @@ static void test_convert_rgba(void)
     SDL_DestroySurface(surf);
 }
 
+static void test_tile_diff(void)
+{
+    const int w = 64, h = 64, bpp = 3;
+    Uint8 *a = (Uint8 *)calloc((size_t)w * (size_t)h * (size_t)bpp, 1);
+    Uint8 *b = (Uint8 *)calloc((size_t)w * (size_t)h * (size_t)bpp, 1);
+    SDL_Rect dirty;
+    KITTY_DiffOutcome out;
+
+    expect_true(a && b, "diff buffers");
+
+    out = KITTY_TileDiffBBox(a, b, w, h, bpp, 32, 0.45f, &dirty);
+    expect_int((int)out, (int)KITTY_DIFF_NONE, "identical -> NONE");
+
+    /* Change one pixel in the top-left tile. */
+    b[0] = 1;
+    out = KITTY_TileDiffBBox(a, b, w, h, bpp, 32, 0.45f, &dirty);
+    expect_int((int)out, (int)KITTY_DIFF_RECT, "one tile -> RECT");
+    expect_int(dirty.x, 0, "dirty.x");
+    expect_int(dirty.y, 0, "dirty.y");
+    expect_int(dirty.w, 32, "dirty.w tile");
+    expect_int(dirty.h, 32, "dirty.h tile");
+
+    /* Opposite corners → large bbox → FULL at 0.45 cover. */
+    b[(63 * w + 63) * bpp] = 2;
+    out = KITTY_TileDiffBBox(a, b, w, h, bpp, 32, 0.45f, &dirty);
+    expect_int((int)out, (int)KITTY_DIFF_FULL, "corners -> FULL by coverage");
+    expect_int(dirty.w, 64, "full bbox.w");
+    expect_int(dirty.h, 64, "full bbox.h");
+
+    expect_true(KITTY_SelectFbDiff(NULL), "diff default on");
+    expect_true(!KITTY_SelectFbDiff("0"), "diff 0 off");
+    expect_int(KITTY_SelectFbDiffTile(NULL), 32, "tile default 32");
+    expect_float_near(KITTY_SelectFbDiffCover(NULL), 0.45f, 0.001f, "cover default");
+
+    free(a);
+    free(b);
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -252,6 +290,7 @@ int main(int argc, char **argv)
     test_convert_preserves_outside();
     test_pack_rgba_rect();
     test_convert_rgba();
+    test_tile_diff();
 
     SDL_Quit();
     if (failures) {
