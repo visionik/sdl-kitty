@@ -30,7 +30,34 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [x] Kitty 0.49.2 source-aligned profile + soak (dirty/alpha/fw/galaga); multi-rect af gates; APC 256KiB
 - [x] Ghostty `apc_chunk_bytes` = 65MiB (apc.zig)
 - [ ] Optional: XTVERSION probe when `TERM_PROGRAM_VERSION` unset (SSH)
-- [ ] Fireworks abort-on-quit on Kitty (saw once; non-blocking)
+- [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
+- [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (PTY flood / input)
+- [ ] WezTerm: diagnose arrow keys dying under MAME (PTY backlog vs kitty keyboard / CSI-u)
+
+---
+
+## Upstream terminal fixes (contribute / track)
+
+### WezTerm (`~/Projects/wezterm`)
+
+- [ ] **a=f display invalidate** — `ImageData.hash` is creation-time only and is the GPU/dedup key (`wezterm-cell/src/image.rs`). `kitty_frame_transmit` mutates pixels + inner frame hash but leaves outer hash stale → sparse `a=f` never paints. Fix: recompute/replace `Arc<ImageData>` after edit and invalidate placements/texture cache.
+- [ ] **a=f success reply** — successful `kitty_frame_transmit` is silent; only errors call `kitty_send_response`. Emit `OK` (optionally with `r=`) so clients need not rely on `silent_af_ok`.
+- [ ] **macOS SHM `t=s`** — open PR [#8063](https://github.com/wezterm/wezterm/pull/8063) (mmap instead of seek/read). Review/land or rebase; unblocks prefer SHM.
+- [ ] After SHM + a=f invalidate: re-soak galaga (expect keys + pace to recover when not flooding PTY with base64).
+
+### Ghostty (`~/Projects/ghostty`)
+
+- [ ] **Stable release with animation** — tip has `a=f` ([#13943](https://github.com/ghostty-org/ghostty/pull/13943)); 1.3.1 still returns `ERROR: unimplemented action`. Track next stable; drop `ghostty-1.3` dirty_bw-off row when shipped.
+- [ ] **libghostty / Rex SHM opt-in** — document or request Rex enable `GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM` (library default is `Limits.direct`).
+
+### Kitty (`~/Projects/kitty`)
+
+- [ ] No blocking graphics bugs found for our path on 0.49.2 (SHM + `a=f` + APC ≤256KiB). Optional: confirm whether `a=f`+`t=s` is intentional/supported (we use direct `a=f` on SHM sessions).
+- [ ] If we chase SHM `a=f` blanks again: re-test after our client never unlinks on success (below).
+
+### sdl-kitty client
+
+- [ ] **`TransmitShm` unlink-before-open** — never `shm_unlink` on success (terminal owns unlink); only on create failure / abandoned object. Affects Kitty.app / Ghostty.app / future WezTerm SHM.
 
 ---
 
