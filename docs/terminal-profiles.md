@@ -29,6 +29,7 @@ Across files: first successful file replaces the table; further files in `SDL_KI
 | `silent_af_ok` | bool | a=f probe: silent (no APC reply) counts as success |
 | `ignore_ioctl_pixels` | bool | Ignore `TIOCGWINSZ` xpixel/ypixel (Rex HiDPI stub) |
 | `direct_af_when_shm` | bool | Allow direct a=f while session transmit mode is SHM |
+| `dirty_at_overlays` | bool | Experiment: sparse dirty as stacked `a=T` overlays (WezTerm) |
 | `direct_fallback_max_bytes` | int | If SHM fails, allow direct fallback only ≤ this size (unless `prefer_direct`) |
 | `notes` | string | Docs / DEBUG only |
 
@@ -78,6 +79,7 @@ Version parse: leading `major[.minor[.patch]]` (skips a non-digit prefix); `-pre
 | `SDL_KITTY_TRANSMIT` | Force medium |
 | `SDL_KITTY_FB_MAX` / `FB_FIXED` | FB size |
 | `SDL_KITTY_DIRTY_BW` | Sparse a=f on/off |
+| `SDL_KITTY_DIRTY_AT` | Stacked a=T dirty overlays on/off (WezTerm experiment) |
 | `SDL_KITTY_FB_DIFF*` / `PINGPONG` / `PLACE_CELLS` / `FB_ALPHA` | Present path |
 | `SDL_KITTY_PROFILES` | Path or `:`-separated list of TOML file(s) |
 | `SDL_KITTY_DEBUG=1` | Log `term=` / `profiles=` source |

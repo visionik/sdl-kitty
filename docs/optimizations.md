@@ -35,6 +35,22 @@ ctest --test-dir build -R kitty_rect_utils_test --output-on-failure
 present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C convert_px=… upload_px=… -> ok
 ```
 
+## Step 1c — Dirty `a=T` overlays (experiment, WezTerm)
+
+**Goal:** When `a=f` cannot refresh the display (WezTerm `ImageData.hash`), still shrink PTY traffic by transmitting each dirty rect as its own stacked `a=T` (z=10) over the live base image.
+
+**Enable:** profile `dirty_at_overlays=true` (WezTerm) or `SDL_KITTY_DIRTY_AT=1`. Kill: `SDL_KITTY_DIRTY_AT=0`.
+
+**Behavior:**
+
+- Same `af_max_coverage` / `af_max_pixels` gates as `a=f`; max 16 rects/frame
+- `place_cells`: map FB rect → cell span + CUP, stretch overlay with `c`/`r`
+- 1:1: CUP + optional `X`/`Y` cell offsets, natural pixel size
+- Full `a=T` / successful `a=f` clears overlay ids first
+- Debug: `mode=dirty_at` with `upload_px` ≪ full FB
+
+**Limits:** cell quantization seams under stretch; overlay delete/re-place churn; not a substitute for upstream `a=f` invalidate.
+
 ## Step 1b — Bandwidth partial (`a=f`) (done, default off)
 
 **Verified:** 2026-10-22 — unit tests; Rex `dirty_bw` with forced env; later same day: init `a=f` probe (`frame_edit_probe ok -> dirty_bw=on`) enables BW without env; `dvd_sprite` uses `mode=dirty_bw`.

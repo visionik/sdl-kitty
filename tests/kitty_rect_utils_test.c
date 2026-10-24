@@ -270,6 +270,44 @@ static void test_tile_diff(void)
     free(b);
 }
 
+static void test_fb_rect_to_place_cells(void)
+{
+    SDL_Rect r = { 100, 50, 200, 100 };
+    int col0 = -1, row0 = -1, pc = -1, pr = -1;
+
+    expect_true(KITTY_FbRectToPlaceCells(1000, 500, &r, 100, 50,
+                                         &col0, &row0, &pc, &pr),
+                "place cells map ok");
+    expect_int(col0, 10, "col0");
+    expect_int(row0, 5, "row0");
+    expect_int(pc, 20, "place_cols");
+    expect_int(pr, 10, "place_rows");
+
+    /* Tiny rect still covers at least one cell. */
+    r.x = 0;
+    r.y = 0;
+    r.w = 1;
+    r.h = 1;
+    expect_true(KITTY_FbRectToPlaceCells(1000, 500, &r, 100, 50,
+                                         &col0, &row0, &pc, &pr),
+                "1px maps");
+    expect_int(col0, 0, "1px col0");
+    expect_int(row0, 0, "1px row0");
+    expect_int(pc, 1, "1px place_cols");
+    expect_int(pr, 1, "1px place_rows");
+}
+
+static void test_fb_pixel_to_cell_cursor(void)
+{
+    int col0 = -1, row0 = -1, X = -1, Y = -1;
+    expect_true(KITTY_FbPixelToCellCursor(25, 40, 10, 20, &col0, &row0, &X, &Y),
+                "cell cursor ok");
+    expect_int(col0, 2, "cursor col");
+    expect_int(row0, 2, "cursor row");
+    expect_int(X, 5, "cell X");
+    expect_int(Y, 0, "cell Y");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -293,6 +331,8 @@ int main(int argc, char **argv)
     test_pack_rgba_rect();
     test_convert_rgba();
     test_tile_diff();
+    test_fb_rect_to_place_cells();
+    test_fb_pixel_to_cell_cursor();
 
     SDL_Quit();
     if (failures) {

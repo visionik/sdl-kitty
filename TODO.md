@@ -33,6 +33,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
 - [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (PTY flood / input)
 - [ ] WezTerm: diagnose arrow keys dying under MAME (PTY backlog vs kitty keyboard / CSI-u)
+- [ ] **dirty_at overlays experiment** — WezTerm profile `dirty_at_overlays=true`: per-dirty-rect stacked `a=T` (z=10) when `a=f` cannot paint. Soak dirty_rects/dvd_sprite/galaga; kill with `SDL_KITTY_DIRTY_AT=0`. Cell-quantized under `place_cells`; expect seams possible.
 
 ---
 

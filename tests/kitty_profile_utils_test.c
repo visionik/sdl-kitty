@@ -126,7 +126,8 @@ static void test_load_shipped_toml(void)
     expect_int(p->default_fb_max_w, 1920, "loaded kitty fb w");
     expect_int(p->default_fb_max_h, 1080, "loaded kitty fb h");
     expect_float_near(p->af_max_coverage, 0.40f, "loaded kitty af coverage");
-    expect_true(!p->direct_af_when_shm, "loaded kitty no direct af on shm");
+    expect_true(p->direct_af_when_shm, "loaded kitty direct_af_when_shm");
+    expect_true(!p->dirty_at_overlays, "loaded kitty no dirty_at");
 
     SDL_unsetenv_unsafe("TERM_PROGRAM");
     SDL_setenv_unsafe("TERM", "xterm-kitty", 1);
@@ -156,6 +157,10 @@ static void test_load_shipped_toml(void)
     SDL_setenv_unsafe("TERM_PROGRAM", "WezTerm", 1);
     p = KITTY_DetectTerminalProfile();
     expect_str(p->name, "wezterm", "loaded wezterm");
+    expect_true(p->prefer_direct, "loaded wezterm prefer_direct");
+    expect_true(p->dirty_at_overlays, "loaded wezterm dirty_at_overlays");
+    expect_int(p->default_fb_max_w, 960, "loaded wezterm fb w");
+    expect_int(p->default_fb_max_h, 540, "loaded wezterm fb h");
 
     SDL_setenv_unsafe("TERM_PROGRAM", "not-a-real-term", 1);
     p = KITTY_DetectTerminalProfile();

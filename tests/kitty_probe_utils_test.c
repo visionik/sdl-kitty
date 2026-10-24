@@ -137,6 +137,15 @@ static void test_select_dirty_bw(void)
     expect_true(!KITTY_SelectDirtyBW("off", true), "env off forces off");
 }
 
+static void test_select_dirty_at(void)
+{
+    expect_true(!KITTY_SelectDirtyAT(NULL, false), "unset + profile off -> off");
+    expect_true(KITTY_SelectDirtyAT(NULL, true), "unset + profile on -> on");
+    expect_true(KITTY_SelectDirtyAT("1", false), "env 1 forces on");
+    expect_true(!KITTY_SelectDirtyAT("0", true), "env 0 forces off");
+    expect_true(!KITTY_SelectDirtyAT("off", true), "env off forces off");
+}
+
 static void test_select_pingpong(void)
 {
     expect_true(!KITTY_SelectPingPong(NULL, false), "default replace (no pingpong)");
@@ -184,6 +193,7 @@ int main(int argc, char **argv)
     test_select_fb_alpha();
     test_classify_resize();
     test_select_dirty_bw();
+    test_select_dirty_at();
     test_select_pingpong();
     test_select_modes();
     SDL_Quit();
