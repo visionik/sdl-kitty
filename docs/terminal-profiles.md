@@ -41,8 +41,14 @@ Across files: first successful file replaces the table; further files in `SDL_KI
 | `match.term_when_program_empty` | string[] | Exact `TERM` when `TERM_PROGRAM` empty (Kitty.app) |
 | `match.term_substring` | string[] | `TERM` contains substring (driver auto-detect) |
 | `match.kitty_window_id` | bool | Treat set `KITTY_WINDOW_ID` as a hit |
+| `match.term_program_version_min` | string | Inclusive semver floor on `TERM_PROGRAM_VERSION` |
+| `match.term_program_version_max` | string | Inclusive semver ceiling on `TERM_PROGRAM_VERSION` |
 
-`unknown` has no matchers (explicit fallback).
+Identity matchers are OR’d; version min/max are AND’d with identity. A row with version bounds does **not** match when `TERM_PROGRAM_VERSION` is unset or unparsable. Put more specific version rows **above** a catch-all for the same host.
+
+Version parse: leading `major[.minor[.patch]]` (skips a non-digit prefix); `-pre` sorts below the same numeric release (`1.3.2-main` < `1.3.2`, and `1.3.2-main` > `1.3.1`). Ghostty tip reports e.g. `1.3.2-main+…`.
+
+`unknown` has no matchers (explicit fallback). Ids like `ghostty-1.3` map to the same `KITTY_TERM_*` kind as the unversioned host name.
 
 ### Tunable constants (usually only in `[defaults]`)
 

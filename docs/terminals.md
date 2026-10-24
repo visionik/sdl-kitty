@@ -11,23 +11,23 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 
 <!-- BEGIN GENERATED MATRIX -->
 
-|   | Rex | Kitty.app | Ghostty | WezTerm | Unknown |
-|---|---|---|---|---|---|
-| **Detect** | `TERM_PROGRAM=rex` | `kitty` or empty + `TERM=xterm-kitty` | `ghostty` | `WezTerm` / `wezterm` | else |
-| **Graphics `a=q` direct** | OK (often) | OK | OK (soak) | TBD | probe |
-| **SHM `t=s`** | `a=T` works when forced; `a=q` often silent/fail → still prefer direct | OK | OK (typical) | TBD | probe |
-| **zlib `o=z`** | reject | varies | varies | TBD | probe |
-| **`a=f` frame-edit** | OK / silent≈OK | OK | OK (soak) | TBD | probe |
-| **Keyboard CSI-u** | OK | OK | OK | TBD | probe |
-| **Prefer transmit** | **direct** | **shm** if ok | **shm** if ok | shm if ok | shm if ok |
-| **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1280×720 | 1280×720 |
-| **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
-| **`a=f` max coverage** | **1.01** | 0.40 | 0.40 | 0.40 | 0.40 |
-| **`a=f` max pixels** | **2073k** | 160k | 160k | 160k | 160k |
-| **Keys on stdin** | yes (required) | yes | yes | yes | yes |
-| **ignore ioctl pixels** | yes | no | no | no | no |
-| **direct a=f when SHM** | yes | no | no | no | no |
-| **Notes** | prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium | Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked hi… | Ghostty.app SHM on; prefer SHM; a=f unimplemented in 1.3.1 → dirty_bw off (fu… | Conservative until soaked | Fallback when TERM_PROGRAM / TERM match nothing |
+|   | Rex | Kitty.app | Ghostty ≤1.3.1 | Ghostty tip+ | WezTerm | Unknown |
+|---|---|---|---|---|---|---|
+| **Detect** | `TERM_PROGRAM=rex` | `kitty` or empty + `TERM=xterm-kitty` | `ghostty` ≤`1.3.1` | `ghostty` | `WezTerm` / `wezterm` | else |
+| **Graphics `a=q` direct** | OK (often) | OK | OK | OK | TBD | probe |
+| **SHM `t=s`** | `a=T` works when forced; `a=q` often silent/fail → still prefer direct | OK | OK | OK | TBD | probe |
+| **zlib `o=z`** | reject | varies | varies | varies | TBD | probe |
+| **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | TBD | probe |
+| **Keyboard CSI-u** | OK | OK | OK | OK | TBD | probe |
+| **Prefer transmit** | **direct** | **shm** if ok | **shm** if ok | **shm** if ok | shm if ok | shm if ok |
+| **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 1280×720 | 1280×720 |
+| **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
+| **`a=f` max coverage** | **1.01** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
+| **`a=f` max pixels** | **2073k** | 160k | 160k | 160k | 160k | 160k |
+| **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
+| **ignore ioctl pixels** | yes | no | no | no | no | no |
+| **direct a=f when SHM** | yes | no | no | yes | no | no |
+| **Notes** | prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium | Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked hi… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T) | Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm for dirty_bw | Conservative until soaked | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 
@@ -73,6 +73,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | `key_probe` (physical) | **5/1 + all arrows** DOWN/UP/repeat via CSI; chords OK; clean quit — visuals OK on all demos |
 | `alpha_blit` Kitty | SHM a=f blanked; multi-rect direct a=f → base64 wall; **no direct a=f on SHM sessions** (full SHM a=T) |
 | 2026-10-23 | Ghostty | key_probe OK | — |
-| 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1; tip [#13943](https://github.com/ghostty-org/ghostty/pull/13943) has animation. Profile: prefer SHM, dirty_bw off. Galaga fastest soak yet (full FB SHM, no base64). |
+| 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1. Profile `ghostty-1.3` (version ≤1.3.1): dirty_bw off. |
+| 2026-10-24 | Ghostty Tip `1.3.2-main+22f100c63` | `term=ghostty`; `frame_edit ok → dirty_bw=on`; yellow block via sparse a=f | Real tip from tip.files.ghostty.org (GH tip DMG was stale=1.3.1). Parser fix: accept `Gi=,r=1;OK`. |
 | 2026-10-23 | Kitty.app | a=q/a=f OK; shm; key_probe OK; fireworks needs a=f→SHM on big dirties | default FB was uncapped → base64 |
 | — | WezTerm | TBD | — |

@@ -49,6 +49,7 @@ static void clear_term_env(void)
 {
     SDL_unsetenv_unsafe("SDL_KITTY_PROFILES");
     SDL_unsetenv_unsafe("TERM_PROGRAM");
+    SDL_unsetenv_unsafe("TERM_PROGRAM_VERSION");
     SDL_unsetenv_unsafe("TERM");
     SDL_unsetenv_unsafe("KITTY_WINDOW_ID");
 }
@@ -112,8 +113,8 @@ static void test_load_shipped_toml(void)
     expect_true(p->silent_af_ok, "loaded rex silent_af_ok");
     expect_true(p->ignore_ioctl_pixels, "loaded rex ignore_ioctl");
     expect_true(p->direct_af_when_shm, "loaded rex direct_af_when_shm");
-    expect_float_near(p->af_max_coverage, 0.95f, "loaded rex af coverage");
-    expect_int((int)p->af_max_pixels, 1280 * 720, "loaded rex af pixels");
+    expect_float_near(p->af_max_coverage, 1.01f, "loaded rex af coverage");
+    expect_int((int)p->af_max_pixels, 1920 * 1080, "loaded rex af pixels");
     expect_int(p->default_fb_max_w, 1280, "loaded rex fb w from defaults");
     expect_int(p->default_fb_max_h, 720, "loaded rex fb h from defaults");
     expect_true(!p->shm_unlink_after_send, "shm_unlink_after_send false");
@@ -134,10 +135,24 @@ static void test_load_shipped_toml(void)
 
     SDL_unsetenv_unsafe("TERM");
     SDL_setenv_unsafe("TERM_PROGRAM", "ghostty", 1);
+    /* No TERM_PROGRAM_VERSION → skip version-gated ghostty-1.3, hit tip catch-all. */
     p = KITTY_DetectTerminalProfile();
-    expect_str(p->name, "ghostty", "loaded ghostty");
+    expect_str(p->name, "ghostty", "loaded ghostty tip catch-all");
     expect_int(p->default_fb_max_w, 1920, "ghostty fb w");
+    expect_true(p->direct_af_when_shm, "tip ghostty direct_af_when_shm");
 
+    SDL_setenv_unsafe("TERM_PROGRAM_VERSION", "1.3.1", 1);
+    p = KITTY_DetectTerminalProfile();
+    expect_str(p->name, "ghostty-1.3", "ghostty 1.3.1 → ghostty-1.3");
+    expect_true(!p->direct_af_when_shm, "1.3.1 no direct_af_when_shm");
+    expect_true(!p->silent_af_ok, "1.3.1 silent_af_ok false");
+
+    SDL_setenv_unsafe("TERM_PROGRAM_VERSION", "1.3.2-main+22f100c", 1);
+    p = KITTY_DetectTerminalProfile();
+    expect_str(p->name, "ghostty", "ghostty tip version → ghostty");
+    expect_true(p->direct_af_when_shm, "tip version direct_af_when_shm");
+
+    SDL_unsetenv_unsafe("TERM_PROGRAM_VERSION");
     SDL_setenv_unsafe("TERM_PROGRAM", "WezTerm", 1);
     p = KITTY_DetectTerminalProfile();
     expect_str(p->name, "wezterm", "loaded wezterm");

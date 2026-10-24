@@ -30,11 +30,33 @@ static void test_parse_ok(void)
                (int)KITTY_GQ_OK, "parse OK");
 }
 
+static void test_parse_ok_with_frame(void)
+{
+    /* Ghostty tip a=f success: echoes r=<frame> before ;OK */
+    const char *ok = "\033_Gi=97,r=1;OK\033\\";
+    expect_int((int)KITTY_ParseGraphicsQueryReply(ok, strlen(ok), 97),
+               (int)KITTY_GQ_OK, "parse OK with r=");
+}
+
+static void test_parse_ok_with_extra_keys(void)
+{
+    const char *ok = "\033_Gi=1,I=2,p=3;OK\033\\";
+    expect_int((int)KITTY_ParseGraphicsQueryReply(ok, strlen(ok), 1),
+               (int)KITTY_GQ_OK, "parse OK with I= p=");
+}
+
 static void test_parse_error(void)
 {
     const char *err = "\033_Gi=99;EBADF:Failed to read image file\033\\";
     expect_int((int)KITTY_ParseGraphicsQueryReply(err, strlen(err), 99),
                (int)KITTY_GQ_ERROR, "parse error");
+}
+
+static void test_parse_error_with_frame(void)
+{
+    const char *err = "\033_Gi=97,r=1;EINVAL: unimplemented action\033\\";
+    expect_int((int)KITTY_ParseGraphicsQueryReply(err, strlen(err), 97),
+               (int)KITTY_GQ_ERROR, "parse error with r=");
 }
 
 static void test_parse_wrong_id(void)
@@ -152,7 +174,10 @@ int main(int argc, char **argv)
         return 1;
     }
     test_parse_ok();
+    test_parse_ok_with_frame();
+    test_parse_ok_with_extra_keys();
     test_parse_error();
+    test_parse_error_with_frame();
     test_parse_wrong_id();
     test_parse_none();
     test_format_place_keys();

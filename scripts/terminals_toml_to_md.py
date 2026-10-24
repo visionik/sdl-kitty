@@ -25,18 +25,20 @@ END = "<!-- END GENERATED MATRIX -->"
 
 # Narrative soak / probe rows that are not in TOML (kept beside profile numbers).
 PROBE_ROWS = [
-    ("Graphics `a=q` direct", "OK (often)", "OK", "OK (soak)", "TBD", "probe"),
-    ("SHM `t=s`", "`a=T` works when forced; `a=q` often silent/fail → still prefer direct", "OK", "OK (typical)", "TBD", "probe"),
-    ("zlib `o=z`", "reject", "varies", "varies", "TBD", "probe"),
-    ("`a=f` frame-edit", "OK / silent≈OK", "OK", "OK (soak)", "TBD", "probe"),
-    ("Keyboard CSI-u", "OK", "OK", "OK", "TBD", "probe"),
+    # columns: rex, kitty, ghostty-1.3, ghostty (tip+), wezterm, unknown
+    ("Graphics `a=q` direct", "OK (often)", "OK", "OK", "OK", "TBD", "probe"),
+    ("SHM `t=s`", "`a=T` works when forced; `a=q` often silent/fail → still prefer direct", "OK", "OK", "OK", "TBD", "probe"),
+    ("zlib `o=z`", "reject", "varies", "varies", "varies", "TBD", "probe"),
+    ("`a=f` frame-edit", "OK / silent≈OK", "OK", "unimplemented 1.3.1", "OK (tip #13943)", "TBD", "probe"),
+    ("Keyboard CSI-u", "OK", "OK", "OK", "OK", "TBD", "probe"),
 ]
 
-HOST_ORDER = ["rex", "kitty", "ghostty", "wezterm", "unknown"]
+HOST_ORDER = ["rex", "kitty", "ghostty-1.3", "ghostty", "wezterm", "unknown"]
 HOST_LABEL = {
     "rex": "Rex",
     "kitty": "Kitty.app",
-    "ghostty": "Ghostty",
+    "ghostty-1.3": "Ghostty ≤1.3.1",
+    "ghostty": "Ghostty tip+",
     "wezterm": "WezTerm",
     "unknown": "Unknown",
 }
@@ -105,7 +107,22 @@ def fmt_pixels(n: int) -> str:
 def prefer_cell(p: dict) -> str:
     if p.get("prefer_direct"):
         return "**direct**"
-    return "**shm** if ok" if p.get("id") in ("kitty", "ghostty") else "shm if ok"
+    tid = p.get("id") or ""
+    if tid == "kitty" or tid == "ghostty" or tid.startswith("ghostty-"):
+        return "**shm** if ok"
+    return "shm if ok"
+
+
+def detect_version_suffix(term: dict) -> str:
+    m = term.get("match") or {}
+    parts = []
+    vmin = m.get("term_program_version_min")
+    vmax = m.get("term_program_version_max")
+    if vmin:
+        parts.append(f"≥`{vmin}`")
+    if vmax:
+        parts.append(f"≤`{vmax}`")
+    return (" " + " ".join(parts)) if parts else ""
 
 
 def notes_cell(p: dict) -> str:
@@ -150,7 +167,7 @@ def build_matrix(data: dict) -> str:
     def row(label: str, cells: list[str]) -> None:
         lines.append("| " + " | ".join([f"**{label}**"] + cells) + " |")
 
-    row("Detect", [detect_cell(c[0]) for c in cols])
+    row("Detect", [detect_cell(c[0]) + detect_version_suffix(c[0]) for c in cols])
 
     for label, *probe in PROBE_ROWS:
         # probe tuple aligned to HOST_ORDER

@@ -64,19 +64,30 @@ match.kitty_window_id = true
 default_fb_max = "1920x1080"
 notes = "Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked historically"
 
+# Ghostty 1.3.x stable (≤1.3.1): a=f unimplemented. Put BEFORE the tip catch-all.
+[[terminal]]
+id = "ghostty-1.3"
+match.term_program = ["ghostty"]
+match.term_substring = ["ghostty"]
+match.term_program_version_max = "1.3.1"
+default_fb_max = "1920x1080"
+prefer_direct = false
+silent_af_ok = false
+direct_af_when_shm = false
+notes = "Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T)"
+
+# Ghostty tip / 1.3.2-dev+ (animation #13943). First-match: only if version > 1.3.1
+# or TERM_PROGRAM_VERSION unset (falls through past ghostty-1.3).
 [[terminal]]
 id = "ghostty"
 match.term_program = ["ghostty"]
 match.term_substring = ["ghostty"]
 default_fb_max = "1920x1080"
 prefer_direct = false
-# Ghostty.app 1.3.1: a=f / a=a / a=c return "ERROR: unimplemented action"
-# (animation landed in tip #13943, after 1.3.1). silent_af_ok would treat the
-# missed/quiet reply as support and enable dirty_bw that never paints.
-# Force dirty_bw off until a release with real animation, or use tip.
 silent_af_ok = false
-direct_af_when_shm = false
-notes = "Ghostty.app SHM on; prefer SHM; a=f unimplemented in 1.3.1 → dirty_bw off (full a=T); tip #13943 has animation"
+# Tip has real a=f: allow direct sparse edits while full frames stay SHM.
+direct_af_when_shm = true
+notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm for dirty_bw"
 
 [[terminal]]
 id = "wezterm"
