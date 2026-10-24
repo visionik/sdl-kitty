@@ -146,6 +146,14 @@ static void test_select_dirty_at(void)
     expect_true(!KITTY_SelectDirtyAT("off", true), "env off forces off");
 }
 
+static void test_select_upload_skip(void)
+{
+    expect_true(!KITTY_SelectUploadSkip(NULL, false), "unset + profile off");
+    expect_true(KITTY_SelectUploadSkip(NULL, true), "unset + profile on");
+    expect_true(KITTY_SelectUploadSkip("1", false), "env 1");
+    expect_true(!KITTY_SelectUploadSkip("0", true), "env 0");
+}
+
 static void test_select_pingpong(void)
 {
     expect_true(!KITTY_SelectPingPong(NULL, false), "default replace (no pingpong)");
@@ -200,6 +208,7 @@ int main(int argc, char **argv)
     test_classify_resize();
     test_select_dirty_bw();
     test_select_dirty_at();
+    test_select_upload_skip();
     test_select_pingpong();
     test_select_modes();
     SDL_Quit();

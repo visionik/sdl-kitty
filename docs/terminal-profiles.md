@@ -23,6 +23,7 @@ Across files: first successful file replaces the table; further files in `SDL_KI
 | `prefer_direct` | bool | Prefer direct over SHM when both probe OK; skip SHM probe |
 | `prefer_zlib` | bool | When not on SHM, prefer `o=z` zlib direct over raw base64 |
 | `force_transmit` | string | Force `direct`/`zlib`/`shm` after env (Exp 2 Ghostty A/B) |
+| `upload_skip` | bool | Skip wire when scratch FNV matches last upload (Exp 6) |
 | `default_fb_max` | `"WxH"` | Aspect-fit FB cap when `SDL_KITTY_FB_MAX` unset; empty/`0` = no default |
 | `max_direct_bytes` | int | Refuse direct a=T / a=f above this raw size |
 | `af_max_coverage` | float | Skip union a=f when dirty coverage ≥ this |

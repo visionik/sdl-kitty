@@ -33,6 +33,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(solid_present examples/solid_present.c)
   target_link_libraries(solid_present PRIVATE SDL3::SDL3)
 
+  add_executable(static_present examples/static_present.c)
+  target_link_libraries(static_present PRIVATE SDL3::SDL3)
+
   add_executable(mouse_paint examples/mouse_paint.c)
   target_link_libraries(mouse_paint PRIVATE SDL3::SDL3)
 

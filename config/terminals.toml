@@ -123,9 +123,11 @@ direct_af_when_shm = false
 # dirty_at overlays crash WezTerm 20240203 (assign_image_to_cells overflow /
 # NotNan add in term/src/terminalstate/image.rs). Keep off; opt-in only.
 dirty_at_overlays = false
+# Exp 6: skip identical full-scratch uploads (FNV).
+upload_skip = true
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer_zlib (Exp2: ~8KB vs ~1.7MB wire @787x540); no SHM (#8063); a=f no invalidate; dirty_at off; FB 960x540"
+notes = "WezTerm: prefer_zlib; upload_skip; no SHM (#8063); a=f no invalidate; dirty_at off; FB 960x540"
 
 [[terminal]]
 id = "unknown"

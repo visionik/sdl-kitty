@@ -35,6 +35,14 @@ ctest --test-dir build -R kitty_rect_utils_test --output-on-failure
 present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C convert_px=… upload_px=… -> ok
 ```
 
+## Step 1d — Upload skip (Exp 6)
+
+**Goal:** If the full RGB scratch FNV-1a matches the last successful upload, skip the wire present (`mode=upload_skip`).
+
+**TOML:** `upload_skip = true` (default via profile tunables). Kill: `SDL_KITTY_UPLOAD_SKIP=0`.
+
+**Notes:** Complements tile-diff (soft full flips). Helps WezTerm when apps pass dirty rects but pixels are unchanged. Hash invalidated on resize / scratch rebuild.
+
 ## Step 1c — Dirty `a=T` overlays (experiment, WezTerm)
 
 **Goal:** When `a=f` cannot refresh the display (WezTerm `ImageData.hash`), still shrink PTY traffic by transmitting each dirty rect as its own stacked `a=T` (z=10) over the live base image.

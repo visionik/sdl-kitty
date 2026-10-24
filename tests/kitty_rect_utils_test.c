@@ -308,6 +308,17 @@ static void test_fb_pixel_to_cell_cursor(void)
     expect_int(Y, 0, "cell Y");
 }
 
+static void test_fnv1a64(void)
+{
+    const Uint8 a[] = { 1, 2, 3 };
+    const Uint8 b[] = { 1, 2, 4 };
+    const Uint64 ha = KITTY_Fnv1a64(a, sizeof(a));
+    const Uint64 hb = KITTY_Fnv1a64(b, sizeof(b));
+    const Uint64 ha2 = KITTY_Fnv1a64(a, sizeof(a));
+    expect_true(ha == ha2, "fnv stable");
+    expect_true(ha != hb, "fnv differs on change");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -333,6 +344,7 @@ int main(int argc, char **argv)
     test_tile_diff();
     test_fb_rect_to_place_cells();
     test_fb_pixel_to_cell_cursor();
+    test_fnv1a64();
 
     SDL_Quit();
     if (failures) {
