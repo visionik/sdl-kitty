@@ -62,7 +62,18 @@ match.term_when_program_empty = ["xterm-kitty"]
 match.term_substring = ["kitty"]
 match.kitty_window_id = true
 default_fb_max = "1920x1080"
-notes = "Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked historically"
+prefer_direct = false
+# Kitty graphics.c: t=s first-class; a=f edits root (r=1) with t=d and marks dirty.
+# Historical "SHM a=f blank" was likely client unlink-before-open; keep unlink=false.
+# Allow direct sparse a=f on SHM sessions (same as Ghostty tip); af_max_* caps base64.
+silent_af_ok = false
+direct_af_when_shm = true
+af_max_coverage = 0.40
+af_max_pixels = 163840
+# vt-parser.c: MAX_ESCAPE_CODE_LENGTH = BUF_SZ/4 = 262144. Longer APCs are ignored
+# (base64 spews as text). Payload chunk = that limit minus header/ST headroom.
+apc_chunk_bytes = 261888
+notes = "Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_* on multi-rect totals"
 
 # Ghostty 1.3.x stable (≤1.3.1): a=f unimplemented. Put BEFORE the tip catch-all.
 [[terminal]]
@@ -74,7 +85,9 @@ default_fb_max = "1920x1080"
 prefer_direct = false
 silent_af_ok = false
 direct_af_when_shm = false
-notes = "Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T)"
+# apc.zig Protocol.defaultMaxBytes(.kitty) = 65 MiB
+apc_chunk_bytes = 68157440
+notes = "Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB"
 
 # Ghostty tip / 1.3.2-dev+ (animation #13943). First-match: only if version > 1.3.1
 # or TERM_PROGRAM_VERSION unset (falls through past ghostty-1.3).
@@ -87,7 +100,9 @@ prefer_direct = false
 silent_af_ok = false
 # Tip has real a=f: allow direct sparse edits while full frames stay SHM.
 direct_af_when_shm = true
-notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm for dirty_bw"
+# apc.zig Protocol.defaultMaxBytes(.kitty) = 65 MiB
+apc_chunk_bytes = 68157440
+notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm; APC ≤65MiB"
 
 [[terminal]]
 id = "wezterm"
