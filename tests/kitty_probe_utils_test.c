@@ -157,21 +157,27 @@ static void test_select_pingpong(void)
 
 static void test_select_modes(void)
 {
-    /* prefer_direct comes from KITTY_TerminalProfile (docs/terminals.md). */
-    expect_int((int)KITTY_SelectTransmitMode("direct", false, true, true),
+    /* Signature: force_env, force_profile, prefer_direct, prefer_zlib, shm_ok, direct_ok */
+    expect_int((int)KITTY_SelectTransmitMode("direct", NULL, false, false, true, true),
                (int)KITTY_TRANSMIT_DIRECT, "force direct");
-    expect_int((int)KITTY_SelectTransmitMode("shm", true, false, true),
+    expect_int((int)KITTY_SelectTransmitMode("shm", NULL, true, false, false, true),
                (int)KITTY_TRANSMIT_SHM, "force shm even when prefer_direct");
-    expect_int((int)KITTY_SelectTransmitMode("zlib", false, true, true),
+    expect_int((int)KITTY_SelectTransmitMode("zlib", NULL, false, false, true, true),
                (int)KITTY_TRANSMIT_DIRECT_ZLIB, "force zlib");
-    expect_int((int)KITTY_SelectTransmitMode(NULL, true, true, true),
+    expect_int((int)KITTY_SelectTransmitMode(NULL, "zlib", false, false, true, true),
+               (int)KITTY_TRANSMIT_DIRECT_ZLIB, "profile force zlib");
+    expect_int((int)KITTY_SelectTransmitMode("direct", "zlib", false, false, true, true),
+               (int)KITTY_TRANSMIT_DIRECT, "env force beats profile");
+    expect_int((int)KITTY_SelectTransmitMode(NULL, NULL, true, false, true, true),
                (int)KITTY_TRANSMIT_DIRECT, "prefer_direct ignores shm_ok");
-    expect_int((int)KITTY_SelectTransmitMode(NULL, false, true, true),
+    expect_int((int)KITTY_SelectTransmitMode(NULL, NULL, true, true, true, true),
+               (int)KITTY_TRANSMIT_DIRECT_ZLIB, "prefer_direct+prefer_zlib");
+    expect_int((int)KITTY_SelectTransmitMode(NULL, NULL, false, false, true, true),
                (int)KITTY_TRANSMIT_SHM, "shm preferred when probe ok");
-    expect_int((int)KITTY_SelectTransmitMode(NULL, false, false, true),
+    expect_int((int)KITTY_SelectTransmitMode(NULL, NULL, false, true, false, true),
+               (int)KITTY_TRANSMIT_DIRECT_ZLIB, "shm fail + prefer_zlib");
+    expect_int((int)KITTY_SelectTransmitMode(NULL, NULL, false, false, false, true),
                (int)KITTY_TRANSMIT_DIRECT, "shm fail -> direct");
-    expect_int((int)KITTY_SelectTransmitMode(NULL, false, false, false),
-               (int)KITTY_TRANSMIT_DIRECT, "all fail -> direct");
 }
 
 int main(int argc, char **argv)

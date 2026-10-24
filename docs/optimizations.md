@@ -95,11 +95,32 @@ Debug: `frame_edit_probe ok|fail -> dirty_bw=on|off`
 **Rules (`KITTY_SelectTransmitMode`):**
 
 1. `SDL_KITTY_TRANSMIT=direct|shm|zlib` wins  
-2. Else `TERM_PROGRAM=rex` → **direct** (skip SHM preference)  
-3. Else SHM probe OK → **shm**  
-4. Else → **direct**
+2. Else profile `force_transmit`  
+3. Else `prefer_direct` → **zlib** if `prefer_zlib` else **direct**  
+4. Else SHM probe OK → **shm**  
+5. Else → **zlib** if `prefer_zlib` else **direct**
 
-**Debug:** `transmit_probe direct=ok|fail shm=ok|fail force=… term=… -> direct|shm|zlib`
+**Debug:** `transmit_probe … prefer_zlib=… profile_force=… -> direct|shm|zlib`
+
+## Perf measurement (wire + time)
+
+Present debug lines include:
+
+| Field | Meaning |
+|---|---|
+| `wire=` | APC bytes written (headers + base64 + ST) |
+| `raw=` | Pre-b64 payload (RGB size, or zlib compressed size) |
+| `ms_tx=` | Client wall time for compress + encode + write |
+| `ms_ack=` | Host round-trip wait for `Gi=<id>;OK` (`-1` if not measured) |
+
+Enable ack timing with `SDL_KITTY_PERF_ACK=1` (syncs presents to host processing — slower, but includes inflate). Every 60 presents also logs `perf_summary`.
+
+```bash
+SDL_KITTY_DEBUG=1 SDL_KITTY_PERF_ACK=1 ./scripts/run-with-kitty-sdl.sh ./build/dirty_rects_demo
+python3 scripts/kitty_perf_summary.py /tmp/sdl_kitty_debug.log
+```
+
+Compare zlib vs direct: lower `wire` with higher `ms_tx`/`ms_ack` means compression helped the PTY but hurt latency.
 
 **Tests:** `ctest -R kitty_probe_utils_test`
 

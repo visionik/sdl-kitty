@@ -97,12 +97,13 @@ match.term_program = ["ghostty"]
 match.term_substring = ["ghostty"]
 default_fb_max = "1920x1080"
 prefer_direct = false
+prefer_zlib = false
 silent_af_ok = false
 # Tip has real a=f: allow direct sparse edits while full frames stay SHM.
 direct_af_when_shm = true
 # apc.zig Protocol.defaultMaxBytes(.kitty) = 65 MiB
 apc_chunk_bytes = 68157440
-notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm; APC ≤65MiB"
+notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm; APC ≤65MiB; Exp2: zlib≪direct but SHM wins"
 
 [[terminal]]
 id = "wezterm"
@@ -112,6 +113,8 @@ match.term_substring = ["wezterm"]
 default_fb_max = "960x540"
 # macOS: t=s seek/read → ENXIO until wezterm#8063 (mmap). Prefer direct.
 prefer_direct = true
+# Exp 2 soak: zlib o=z instead of raw base64.
+prefer_zlib = true
 # a=f mutates ImageDataType pixels + inner hash, but ImageData.hash is immutable
 # (creation-time only) and is the GPU/dedup key — texture never refreshes.
 # silent_af_ok would enable dirty_bw that never paints (bg tint OK, yellow gone).
@@ -122,7 +125,7 @@ direct_af_when_shm = false
 dirty_at_overlays = false
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer direct (macOS SHM #8063); a=f no display invalidate → dirty_bw off; dirty_at crashed host; FB 960x540"
+notes = "WezTerm: prefer_zlib (Exp2: ~8KB vs ~1.7MB wire @787x540); no SHM (#8063); a=f no invalidate; dirty_at off; FB 960x540"
 
 [[terminal]]
 id = "unknown"
