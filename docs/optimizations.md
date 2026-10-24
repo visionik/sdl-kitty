@@ -134,6 +134,8 @@ Debug: `frame_edit_probe ok|fail -> dirty_bw=on|off`
 
 **Verified:** 2026-10-22 — unit tests pass; Rex `solid_present` log `direct=ok … term=rex -> direct`, colors cycling.
 
+**Rex zlib (2026-10-24):** `prefer_zlib = true` after soak — full `a=T` wire drops hard (solid ~12 KB vs ~2.8 MB; alpha init ~104 KB vs ~1.8 MB raw). Visuals OK on `dirty_rects_demo` / `alpha_blit`. Sparse `a=f` stays `t=d` (same wire either way).
+
 **Goal:** On init, probe Kitty graphics query (`a=q`) for direct and (when not Rex) SHM; select `transmit_mode`.
 
 **Rules (`KITTY_SelectTransmitMode`):**

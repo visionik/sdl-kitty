@@ -46,6 +46,9 @@ shm_unlink_after_send = false
 id = "rex"
 match.term_program = ["rex"]
 prefer_direct = true
+# Exp 2 Rex soak (2026-10-24): o=z full a=T OK (solid/dirty/alpha); big wire win vs raw.
+# a=f stays t=d either way — zlib only helps full a=T (init/resize/fallback).
+prefer_zlib = true
 # Full-frame a=f OK on Rex (avoids a=T flash). Gate is cov < max, so 1.01 not 1.0.
 # Keep fb_diff on for MAME soft; driver must not skip a=f on DIFF_FULL (see framebuffer).
 af_max_coverage = 1.01
@@ -55,7 +58,7 @@ ignore_ioctl_pixels = true
 direct_af_when_shm = true
 # Exp 5 Rex soak: alpha_blit 6→1/2; lower upload_px than gap=0.
 coalesce_gap_px = 2
-notes = "prefer direct; full-frame a=f; coalesce_gap_px=2; t=s unsupported medium"
+notes = "prefer_direct+zlib; full-frame a=f; coalesce=2; t=s unsupported"
 
 [[terminal]]
 id = "kitty"
