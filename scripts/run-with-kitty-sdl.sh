@@ -17,6 +17,10 @@ fi
 
 export SDL_VIDEO_DRIVER=kitty
 export SDL3_DYNAMIC_API="${LIB}"
+# Prefer repo profiles so TOML edits apply without reinstall (override if already set).
+if [[ -z "${SDL_KITTY_PROFILES:-}" && -f "${ROOT}/config/terminals.toml" ]]; then
+  export SDL_KITTY_PROFILES="${ROOT}/config/terminals.toml"
+fi
 # Also put our lib first on the loader path for binaries linked to it directly.
 if [[ "$(uname)" == "Darwin" ]]; then
   export DYLD_LIBRARY_PATH="$(dirname "$LIB"):${DYLD_LIBRARY_PATH:-}"

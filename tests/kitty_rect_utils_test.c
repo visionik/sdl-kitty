@@ -259,10 +259,12 @@ static void test_tile_diff(void)
     expect_int(dirty.w, 64, "full bbox.w");
     expect_int(dirty.h, 64, "full bbox.h");
 
-    expect_true(KITTY_SelectFbDiff(NULL), "diff default on");
-    expect_true(!KITTY_SelectFbDiff("0"), "diff 0 off");
-    expect_int(KITTY_SelectFbDiffTile(NULL), 32, "tile default 32");
-    expect_float_near(KITTY_SelectFbDiffCover(NULL), 0.45f, 0.001f, "cover default");
+    expect_true(KITTY_SelectFbDiff(NULL, true), "diff default on");
+    expect_true(!KITTY_SelectFbDiff(NULL, false), "diff profile default off");
+    expect_true(!KITTY_SelectFbDiff("0", true), "diff 0 off");
+    expect_int(KITTY_SelectFbDiffTile(NULL, 32), 32, "tile default 32");
+    expect_int(KITTY_SelectFbDiffTile(NULL, 16), 16, "tile profile default 16");
+    expect_float_near(KITTY_SelectFbDiffCover(NULL, 0.45f), 0.45f, 0.001f, "cover default");
 
     free(a);
     free(b);

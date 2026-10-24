@@ -13,6 +13,16 @@ set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/SDL)
 
+# In-tree demos: fall back to repo config/terminals.toml when SDL_KITTY_PROFILES unset.
+if(TARGET SDL3-shared)
+  target_compile_definitions(SDL3-shared PRIVATE
+    "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+endif()
+if(TARGET SDL3-static)
+  target_compile_definitions(SDL3-static PRIVATE
+    "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+endif()
+
 if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(checker_keyboard examples/checker_keyboard.c)
   target_link_libraries(checker_keyboard PRIVATE SDL3::SDL3)

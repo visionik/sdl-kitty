@@ -117,10 +117,11 @@ static void test_select_dirty_bw(void)
 
 static void test_select_pingpong(void)
 {
-    expect_true(!KITTY_SelectPingPong(NULL), "default replace (no pingpong)");
-    expect_true(!KITTY_SelectPingPong("0"), "PINGPONG=0");
-    expect_true(KITTY_SelectPingPong("1"), "PINGPONG=1");
-    expect_true(!KITTY_SelectPingPong("off"), "PINGPONG=off");
+    expect_true(!KITTY_SelectPingPong(NULL, false), "default replace (no pingpong)");
+    expect_true(KITTY_SelectPingPong(NULL, true), "profile default pingpong on");
+    expect_true(!KITTY_SelectPingPong("0", true), "PINGPONG=0");
+    expect_true(KITTY_SelectPingPong("1", false), "PINGPONG=1");
+    expect_true(!KITTY_SelectPingPong("off", true), "PINGPONG=off");
 }
 
 static void test_select_modes(void)

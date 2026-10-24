@@ -126,9 +126,8 @@ int main(int argc, char **argv)
 
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "kitty");
     SDL_setenv_unsafe("SDL_KITTY_FB_ALPHA", "1", 1);
-    SDL_setenv_unsafe("SDL_KITTY_TRANSMIT", "direct", 0);
-    /* Prefer a=f dirty edits so static grid tiles are not re-uploaded. */
-    SDL_setenv_unsafe("SDL_KITTY_DIRTY_BW", "1", 0);
+    /* Do not force TRANSMIT or DIRTY_BW — host profile + probe choose
+     * SHM/direct and whether a=f is safe (Kitty frame_edit probe often fails). */
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());

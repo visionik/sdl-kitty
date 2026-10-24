@@ -1,0 +1,80 @@
+# sdl-kitty terminal profiles
+#
+# Defaults & quirks only — runtime probes (a=q / SHM / a=f) still decide what
+# is *available*. Env SDL_KITTY_* overrides everything below.
+#
+# Resolve: copy [defaults] → first matching [[terminal]] overlays set keys only
+# → unknown row if nothing matches → env.
+#
+# Schema: docs/terminal-profiles.md
+# Human matrix (generated later): docs/terminals.md
+#
+# Status: Phase 2 loader active (tomlc17). Search: SDL_KITTY_PROFILES, pref path,
+# base path, then in-tree KITTY_DEFAULT_PROFILES_PATH. Missing/bad file → builtins.
+
+[defaults]
+prefer_direct = false
+default_fb_max = "1280x720"
+max_direct_bytes = 8294400          # 1920*1080*4
+af_max_coverage = 0.40
+af_max_pixels = 163840              # 160*1024
+keys_on_stdin = true
+silent_af_ok = false
+ignore_ioctl_pixels = false
+direct_af_when_shm = false
+direct_fallback_max_bytes = 262144  # 256*1024
+apc_chunk_bytes = 2097152           # 2 MiB
+probe_timeout_ms = 40
+drain_passes = 8
+drain_quiet_us = 15000
+stub_winch_iters = 40
+stub_winch_delay_ms = 25
+stub_cols = 80
+stub_rows = 24
+key_hold_ms = 80
+fb_diff = true
+fb_diff_tile = 32
+fb_diff_cover = 0.45
+tty_pending_max = 4096
+window_fallback = "640x480"
+place_cells = true
+pingpong = false
+# Protocol: terminal unlinks after read — client must not unlink on success.
+shm_unlink_after_send = false
+
+[[terminal]]
+id = "rex"
+match.term_program = ["rex"]
+prefer_direct = true
+af_max_coverage = 0.95
+af_max_pixels = 921600              # 1280*720
+silent_af_ok = true
+ignore_ioctl_pixels = true
+direct_af_when_shm = true
+notes = "libghostty default disables t=s (a=q → EINVAL unsupported medium); prefer direct"
+
+[[terminal]]
+id = "kitty"
+match.term_program = ["kitty"]
+match.term_when_program_empty = ["xterm-kitty"]
+match.term_substring = ["kitty"]
+match.kitty_window_id = true
+default_fb_max = "1920x1080"
+notes = "Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked historically"
+
+[[terminal]]
+id = "ghostty"
+match.term_program = ["ghostty"]
+match.term_substring = ["ghostty"]
+default_fb_max = "1920x1080"
+notes = "Ghostty.app enables SHM via allWithTempDir; same a=f policy as Kitty for now"
+
+[[terminal]]
+id = "wezterm"
+match.term_program = ["WezTerm", "wezterm"]
+notes = "Conservative until soaked"
+
+[[terminal]]
+id = "unknown"
+silent_af_ok = true
+notes = "Fallback when TERM_PROGRAM / TERM match nothing"
