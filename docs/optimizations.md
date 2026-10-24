@@ -45,7 +45,7 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 **Ghostty tip soak (2026-10-24):** `alpha_blit` coalesce ON logs `6 -> 3` / `6 -> 2` (gap=2); OFF (`COALESCE_GAP=0`) keeps `rects=6`. Wire/ms_tx flat (~256 / 0.56) on SHM — coalesce cuts APC count, not SHM payload size. Kept on Ghostty tip + WezTerm profiles.
 
-**Rex soak (2026-10-24):** `dirty_bw` baseline OK; coalesce ON `6 -> 2` / `6 -> 1` with lower `upload_px` than gap=0 on `alpha_blit`. Enabled `coalesce_gap_px = 2` on Rex profile. Note: `a=f` path currently logs `wire=0` (TransmitRGBRectEdit does not update wire counters).
+**Rex soak (2026-10-24):** `dirty_bw` baseline OK; coalesce ON `6 -> 2` / `6 -> 1` with lower `upload_px` than gap=0 on `alpha_blit`. Enabled `coalesce_gap_px = 2` on Rex profile. `a=f` wire/ms counters fixed in `TransmitRGBRectEdit` (were stuck at 0).
 
 ## Step 1f — Single union `a=T` (Exp 3)
 
