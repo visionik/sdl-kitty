@@ -53,7 +53,9 @@ af_max_pixels = 2073600             # 1920*1080
 silent_af_ok = true
 ignore_ioctl_pixels = true
 direct_af_when_shm = true
-notes = "prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium"
+# Exp 5 Rex soak: alpha_blit 6→1/2; lower upload_px than gap=0.
+coalesce_gap_px = 2
+notes = "prefer direct; full-frame a=f; coalesce_gap_px=2; t=s unsupported medium"
 
 [[terminal]]
 id = "kitty"

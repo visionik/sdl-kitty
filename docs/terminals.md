@@ -27,7 +27,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
 | **ignore ioctl pixels** | yes | no | no | no | no | no |
 | **direct a=f when SHM** | yes | yes | no | yes | no | no |
-| **Notes** | prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off | Fallback when TERM_PROGRAM / TERM match nothing |
+| **Notes** | prefer direct; full-frame a=f; coalesce_gap_px=2; t=s unsupported medium | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 
