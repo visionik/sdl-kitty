@@ -158,7 +158,7 @@ static void test_load_shipped_toml(void)
     p = KITTY_DetectTerminalProfile();
     expect_str(p->name, "wezterm", "loaded wezterm");
     expect_true(p->prefer_direct, "loaded wezterm prefer_direct");
-    expect_true(p->dirty_at_overlays, "loaded wezterm dirty_at_overlays");
+    expect_true(!p->dirty_at_overlays, "loaded wezterm dirty_at off (host crash)");
     expect_int(p->default_fb_max_w, 960, "loaded wezterm fb w");
     expect_int(p->default_fb_max_h, 540, "loaded wezterm fb h");
 

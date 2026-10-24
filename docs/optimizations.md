@@ -39,7 +39,7 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 **Goal:** When `a=f` cannot refresh the display (WezTerm `ImageData.hash`), still shrink PTY traffic by transmitting each dirty rect as its own stacked `a=T` (z=10) over the live base image.
 
-**Enable:** profile `dirty_at_overlays=true` (WezTerm) or `SDL_KITTY_DIRTY_AT=1`. Kill: `SDL_KITTY_DIRTY_AT=0`.
+**Enable:** `SDL_KITTY_DIRTY_AT=1` only (profile default **off** after WezTerm crash).
 
 **Behavior:**
 
@@ -49,7 +49,18 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 - Full `a=T` / successful `a=f` clears overlay ids first
 - Debug: `mode=dirty_at` with `upload_px` ≪ full FB
 
-**Limits:** cell quantization seams under stretch; overlay delete/re-place churn; not a substitute for upstream `a=f` invalidate.
+**WezTerm 20240203 failure:** paints a few overlay frames then panics
+(`assign_image_to_cells` overflow / `NotNan` add) **or hangs** (~1GB RSS:
+PTY thread stuck placing cells while UI waits on the pane mutex). Likely
+small-image + `c`/`r` stretch + CUP + `C=1` near edges with ungarded
+cell-delta / `physical_rows - cursor.y` math (tip #6344 guards help zeros;
+20240203 still vulnerable). Tracked under Upstream → WezTerm in `TODO.md`.
+
+**If reviving before upstream:** DECSC/DECRC around overlay CUP; omit overlay
+`c`/`r` (1:1 pixels); skip placements whose cell box touches the screen edge;
+or wait for a=f hash invalidate (preferred) / newer WezTerm.
+
+**Limits:** host crash/hang risk; cell seams; overlay churn; not a substitute for `a=f` invalidate.
 
 ## Step 1b — Bandwidth partial (`a=f`) (done, default off)
 

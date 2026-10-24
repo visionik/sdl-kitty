@@ -117,11 +117,12 @@ prefer_direct = true
 # silent_af_ok would enable dirty_bw that never paints (bg tint OK, yellow gone).
 silent_af_ok = false
 direct_af_when_shm = false
-# Experiment: multi a=T overlays for dirty rects (a=f does not paint).
-dirty_at_overlays = true
+# dirty_at overlays crash WezTerm 20240203 (assign_image_to_cells overflow /
+# NotNan add in term/src/terminalstate/image.rs). Keep off; opt-in only.
+dirty_at_overlays = false
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer direct (macOS SHM #8063); a=f no display invalidate → dirty_at overlays; FB 960x540"
+notes = "WezTerm: prefer direct (macOS SHM #8063); a=f no display invalidate → dirty_bw off; dirty_at crashed host; FB 960x540"
 
 [[terminal]]
 id = "unknown"

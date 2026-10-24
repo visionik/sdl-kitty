@@ -33,7 +33,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
 - [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (PTY flood / input)
 - [ ] WezTerm: diagnose arrow keys dying under MAME (PTY backlog vs kitty keyboard / CSI-u)
-- [ ] **dirty_at overlays experiment** — WezTerm profile `dirty_at_overlays=true`: per-dirty-rect stacked `a=T` (z=10) when `a=f` cannot paint. Soak dirty_rects/dvd_sprite/galaga; kill with `SDL_KITTY_DIRTY_AT=0`. Cell-quantized under `place_cells`; expect seams possible.
+- [x] **dirty_at overlays experiment** — implemented; **hangs/panics WezTerm 20240203** (see upstream item). Profile default **off**; opt-in `SDL_KITTY_DIRTY_AT=1` only. Client mitigations below if we revive the experiment before upstream lands.
 
 ---
 
@@ -41,10 +41,12 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 
 ### WezTerm (`~/Projects/wezterm`)
 
-- [ ] **a=f display invalidate** — `ImageData.hash` is creation-time only and is the GPU/dedup key (`wezterm-cell/src/image.rs`). `kitty_frame_transmit` mutates pixels + inner frame hash but leaves outer hash stale → sparse `a=f` never paints. Fix: recompute/replace `Arc<ImageData>` after edit and invalidate placements/texture cache.
+- [ ] **`assign_image_to_cells` overflow / hang with C=1 overlays** — sdl-kitty `dirty_at` (small `a=T` + `c`/`r` stretch + CUP + `C=1`) paints briefly then either panics (`attempt to add with overflow` / `NotNan` add in `term/src/terminalstate/image.rs`) or **hangs** (~1GB RSS): PTY thread stuck in `kitty_img_place` → `assign_image_to_cells` → `Line::set_cell` while UI `paint_pass` waits on the pane mutex (spindump 2026-10-24, PID 5558). Likely `physical_rows - cursor.y` underflow / ungarded cell-delta math when placement meets the screen edge under `do_not_move_cursor`. Tip has some zero-dimension guards (#6344); 20240203 does not. Fix: saturating/clamped height under `C=1`, reject or clip placements that extend past the screen, avoid holding the mux lock across huge cell loops (or bound work). Repro: WezTerm 20240203 + `SDL_KITTY_DIRTY_AT=1` + `dirty_rects_demo`. Evidence: `/tmp/wezterm-hang.txt`, panic dialog screenshot in session.
+- [ ] **a=f display invalidate** — `ImageData.hash` is creation-time only and is the GPU/dedup key (`wezterm-cell/src/image.rs`). `kitty_frame_transmit` mutates pixels + inner frame hash but leaves outer hash stale → sparse `a=f` never paints. Fix: recompute/replace `Arc<ImageData>` after edit and invalidate placements/texture cache. **Preferred** path vs dirty_at overlays once this lands.
 - [ ] **a=f success reply** — successful `kitty_frame_transmit` is silent; only errors call `kitty_send_response`. Emit `OK` (optionally with `r=`) so clients need not rely on `silent_af_ok`.
 - [ ] **macOS SHM `t=s`** — open PR [#8063](https://github.com/wezterm/wezterm/pull/8063) (mmap instead of seek/read). Review/land or rebase; unblocks prefer SHM.
 - [ ] After SHM + a=f invalidate: re-soak galaga (expect keys + pace to recover when not flooding PTY with base64).
+- [ ] If reviving dirty_at before a=f invalidate: client-side DECSC/DECRC, no overlay `c`/`r`, and/or skip edge-touching cell boxes (see docs/optimizations.md Step 1c).
 
 ### Ghostty (`~/Projects/ghostty`)
 
