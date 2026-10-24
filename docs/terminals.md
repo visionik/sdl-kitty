@@ -60,6 +60,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | 2026-10-23 | Rex | retest: drain clean; probe `shm=fail` but forced `a=T` t=s presents OK | honor force (clear shm_failed); keep prefer_direct default |
 | 2026-10-23 | Rex | soak suite: solid direct/SHM, dirty_bw, dvd_sprite, fireworks bursts, keys | see soak notes below |
 | 2026-10-24 | Rex | prefer_zlib + coalesce=2: fireworks / dvd_sprite / MAME pacman all look great | `-> zlib`; sparse `dirty_bw`; MAME soft often full-frame `a=f` (~2.8 MB) when `af_max_coverage=1.01` — visuals OK, wire heavy on attract/menu |
+| 2026-10-24 | Rex | MAME pacman after af_max=0.40 + keep tile-diff bbox | Looks great. Large dirties → `dirty_cpu` zlib (~12–110 KB) vs old ~2.8 MB `a=f`; sparse still `dirty_bw` (e.g. 96×480). `tile-diff FULL bbox=… (kept bbox)` logged. |
 
 ### Rex soak suite (2026-10-23, post profile + drain)
 
