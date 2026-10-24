@@ -17,9 +17,14 @@ Ghostty source (`~/Projects/ghostty`):
 - Protocol: **client must not unlink before the terminal opens**; Ghostty unlinks after open. Our `TransmitShm` still always-unlinks after send (bug for Kitty.app / Ghostty.app) — probe already leaves the name on success
 - `a=f` in Ghostty is **animation-frame** transmit (incl. SHM medium when enabled), composed into an existing image
 
+Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK. **a=f is unimplemented in 1.3.1** (returns `ERROR: unimplemented action`); real animation is tip PR #13943 (merged 2026-08-21, after 1.3.1 cut). Profile: `prefer_direct=false`, `silent_af_ok=false`, `direct_af_when_shm=false` → dirty_bw off, full a=T (works). Revisit dirty_bw on tip / next release.
+
 - [ ] Ask Rex to enable Kitty shared-memory medium (or document why it’s off)
 - [ ] Fix `TransmitShm` / probe: never `shm_unlink` on success; only on create failure / abandoned object
 - [ ] Keep Rex `prefer_direct` until host SHM is actually enabled
+- [x] Ghostty 1.3.1: diagnose a=f (unimplemented; tip #13943)
+- [x] Ghostty 1.3.1 soak: alpha, fireworks, galaga (full SHM a=T; smooth)
+- [ ] Ghostty tip/next: re-soak dirty_bw once animation ships in a release
 
 ---
 

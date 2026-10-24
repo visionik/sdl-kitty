@@ -69,7 +69,14 @@ id = "ghostty"
 match.term_program = ["ghostty"]
 match.term_substring = ["ghostty"]
 default_fb_max = "1920x1080"
-notes = "Ghostty.app enables SHM via allWithTempDir; same a=f policy as Kitty for now"
+prefer_direct = false
+# Ghostty.app 1.3.1: a=f / a=a / a=c return "ERROR: unimplemented action"
+# (animation landed in tip #13943, after 1.3.1). silent_af_ok would treat the
+# missed/quiet reply as support and enable dirty_bw that never paints.
+# Force dirty_bw off until a release with real animation, or use tip.
+silent_af_ok = false
+direct_af_when_shm = false
+notes = "Ghostty.app SHM on; prefer SHM; a=f unimplemented in 1.3.1 → dirty_bw off (full a=T); tip #13943 has animation"
 
 [[terminal]]
 id = "wezterm"

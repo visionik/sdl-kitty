@@ -12,6 +12,7 @@ Prints a short report to stderr (CRLF-safe for raw-ish hosts).
 from __future__ import annotations
 
 import base64
+import mmap
 import os
 import re
 import select
@@ -64,6 +65,87 @@ def b64_pixel_rgb() -> str:
     return base64.b64encode(bytes([255, 0, 0])).decode("ascii")
 
 
+def _classify_gq(buf: bytes) -> str:
+    if re.search(rb";OK\033\\|;OK\x1b\\|OK", buf):
+        return "OK"
+    if re.search(rb";\d+:", buf) or b"EINVAL" in buf or b"ENOENT" in buf or b"EBADF" in buf:
+        return "ERROR"
+    if b"unsupported medium" in buf.lower():
+        return "ERROR"
+    if not buf:
+        return "SILENT/NONE"
+    return "SILENT/NONE"
+
+
+def _shm_wrap_lib() -> "ctypes.CDLL":
+    """Non-variadic shm_open wrapper.
+
+    Apple Silicon ctypes cannot pass the mode arg to variadic shm_open(3)
+    correctly, which yields an unopenable object (EACCES / Ghostty
+    EINVAL: invalid data). A tiny fixed-arity wrapper avoids that.
+    """
+    import ctypes
+    import subprocess
+    import tempfile
+
+    lib_path = os.path.join(tempfile.gettempdir(), "sdl_kitty_shm_wrap.dylib")
+    src = (
+        "#include <sys/mman.h>\n"
+        "#include <fcntl.h>\n"
+        "int sk_shm_open(const char *name, int oflag, int mode) {\n"
+        "  return shm_open(name, oflag, mode);\n"
+        "}\n"
+        "int sk_shm_unlink(const char *name) { return shm_unlink(name); }\n"
+    )
+    need_build = True
+    if os.path.exists(lib_path):
+        # Rebuild if missing symbols would fail load; cheap to rebuild when stale.
+        try:
+            age = time.time() - os.path.getmtime(lib_path)
+            need_build = age > 86400
+        except OSError:
+            need_build = True
+    if need_build:
+        src_path = lib_path + ".c"
+        with open(src_path, "w", encoding="utf-8") as f:
+            f.write(src)
+        subprocess.check_call(
+            ["cc", "-dynamiclib", "-o", lib_path, src_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    lib = ctypes.CDLL(lib_path)
+    lib.sk_shm_open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+    lib.sk_shm_open.restype = ctypes.c_int
+    lib.sk_shm_unlink.argtypes = [ctypes.c_char_p]
+    return lib
+
+
+def _shm_open_probe(name: str, payload: bytes) -> int | None:
+    """Create a POSIX shm object with payload. Returns fd, or None on failure."""
+    wrap = _shm_wrap_lib()
+    name_b = name.encode("ascii")
+    wrap.sk_shm_unlink(name_b)
+    fd = wrap.sk_shm_open(name_b, os.O_CREAT | os.O_RDWR | os.O_EXCL, 0o600)
+    if fd < 0:
+        return None
+    try:
+        os.ftruncate(fd, len(payload))
+    except OSError:
+        os.close(fd)
+        wrap.sk_shm_unlink(name_b)
+        return None
+    mm = mmap.mmap(fd, len(payload))
+    mm[:] = payload
+    mm.close()
+    return fd
+
+
+def _shm_unlink(name: str) -> None:
+    wrap = _shm_wrap_lib()
+    wrap.sk_shm_unlink(name.encode("ascii"))
+
+
 def main() -> int:
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         eprint("need a real tty on stdin+stdout")
@@ -105,15 +187,31 @@ def main() -> int:
         drain(fd_in, 0.02)
         os.write(fd_out, cmd)
         qbuf = await_reply(fd_in, re.compile(rb"\033_G.*\033\\|\033\\\\\033\\"), 40)
-        direct = "OK" if (b"OK" in qbuf or b"OK".lower() in qbuf.lower()) else (
-            "ERROR" if b"ENOENT" in qbuf or b"EINVAL" in qbuf or b"error" in qbuf.lower() else "SILENT/NONE"
-        )
-        # Kitty replies like: ESC_G...;OK ESC\   or with errno
-        if re.search(rb";OK\033\\|;OK\x1b\\", qbuf):
-            direct = "OK"
-        elif re.search(rb";\d+:", qbuf) or b"EBADF" in qbuf:
-            direct = "ERROR"
+        direct = _classify_gq(qbuf)
         eprint(f"a=q direct RGB (t=d): {direct}  raw={qbuf[:120]!r}")
+
+        # --- a=q SHM RGB 1x1 (t=s) — Ghostty.app enables; Rex/libghostty often rejects ---
+        shm = "SKIP"
+        shm_name = f"/sdl-kitty-caps-{os.getpid()}"
+        shm_fd = _shm_open_probe(shm_name, bytes([255, 0, 0]))
+        qid_s = 900004
+        if shm_fd is None:
+            shm = "CREATE_FAIL"
+            eprint(f"a=q SHM (t=s): {shm} (shm_open failed)")
+        else:
+            name_b64 = base64.b64encode(shm_name.encode("ascii")).decode("ascii")
+            scmd = (
+                f"\033_Ga=q,t=s,f=24,s=1,v=1,i={qid_s},S=3;{name_b64}\033\\\033[c"
+            ).encode()
+            drain(fd_in, 0.02)
+            os.write(fd_out, scmd)
+            sbuf = await_reply(fd_in, re.compile(rb"\033_G.*\033\\|\033\\\\\033\\"), 40)
+            shm = _classify_gq(sbuf)
+            eprint(f"a=q SHM (t=s): {shm}  name={shm_name} raw={sbuf[:140]!r}")
+            os.close(shm_fd)
+            # Protocol: terminal unlinks on success; client unlinks on failure.
+            if shm != "OK":
+                _shm_unlink(shm_name)
 
         # --- tiny visible place (a=T) then delete ---
         pid = 900002
@@ -134,26 +232,24 @@ def main() -> int:
         ).encode()
         os.write(fd_out, edit)
         ebuf = await_reply(fd_in, re.compile(rb"\033_G"), 40)
-        if re.search(rb";OK", ebuf):
-            frame_edit = "OK"
-        elif re.search(rb";\d+:", ebuf) or b"EINVAL" in ebuf or b"ENOENT" in ebuf:
-            frame_edit = "ERROR"
-        else:
+        frame_edit = _classify_gq(ebuf)
+        if frame_edit == "SILENT/NONE":
             frame_edit = "SILENT/NONE (often OK on Rex)"
         eprint(f"a=f frame-edit: {frame_edit}  raw={ebuf[:120]!r}")
 
         # cleanup images
-        for i in (pid, fid, qid):
+        for i in (pid, fid, qid, qid_s):
             os.write(fd_out, f"\033_Ga=d,d=I,i={i},q=2\033\\".encode())
         drain(fd_in, 0.05)
 
         eprint("--- summary ---")
         eprint(f"direct transmit a=q: {direct}")
+        eprint(f"SHM transmit a=q:    {shm}")
         eprint(f"frame edit a=f:      {frame_edit}")
-        eprint("Expect: Kitty/Ghostty often OK; Rex often SILENT on a=q/a=f (driver treats silent as OK for a=f).")
+        eprint("Expect: Ghostty.app SHM OK; Rex SHM ERROR (unsupported medium); Kitty SHM OK.")
         eprint("For what *sdl-kitty* chose, also run:")
-        eprint("  SDL_KITTY_DEBUG=1 scripts/run-with-kitty-sdl.sh build/solid_present 2>/tmp/sdl-caps.err")
-        eprint("  rg 'transmit_probe|frame_edit|init cols' /tmp/sdl-caps.err")
+        eprint("  SDL_KITTY_DEBUG=1 scripts/run-with-kitty-sdl.sh build/solid_present 2>/tmp/sdl-caps-ghostty.err")
+        eprint("  rg 'transmit_probe|frame_edit|init |term=' /tmp/sdl-caps-ghostty.err")
     finally:
         try:
             os.write(fd_out, b"\033_Ga=d,d=A,q=2\033\\")  # delete all

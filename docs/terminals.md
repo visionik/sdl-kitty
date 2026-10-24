@@ -27,7 +27,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **Keys on stdin** | yes (required) | yes | yes | yes | yes |
 | **ignore ioctl pixels** | yes | no | no | no | no |
 | **direct a=f when SHM** | yes | no | no | no | no |
-| **Notes** | prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium | Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked hi… | Ghostty.app enables SHM via allWithTempDir; same a=f policy as Kitty for now | Conservative until soaked | Fallback when TERM_PROGRAM / TERM match nothing |
+| **Notes** | prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium | Prefer SHM; skip direct a=f on SHM sessions (base64 wall); SHM a=f blanked hi… | Ghostty.app SHM on; prefer SHM; a=f unimplemented in 1.3.1 → dirty_bw off (fu… | Conservative until soaked | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 
@@ -73,5 +73,6 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | `key_probe` (physical) | **5/1 + all arrows** DOWN/UP/repeat via CSI; chords OK; clean quit — visuals OK on all demos |
 | `alpha_blit` Kitty | SHM a=f blanked; multi-rect direct a=f → base64 wall; **no direct a=f on SHM sessions** (full SHM a=T) |
 | 2026-10-23 | Ghostty | key_probe OK | — |
+| 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1; tip [#13943](https://github.com/ghostty-org/ghostty/pull/13943) has animation. Profile: prefer SHM, dirty_bw off. Galaga fastest soak yet (full FB SHM, no base64). |
 | 2026-10-23 | Kitty.app | a=q/a=f OK; shm; key_probe OK; fireworks needs a=f→SHM on big dirties | default FB was uncapped → base64 |
 | — | WezTerm | TBD | — |
