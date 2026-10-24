@@ -87,7 +87,9 @@ Version parse: leading `major[.minor[.patch]]` (skips a non-digit prefix); `-pre
 | `SDL_KITTY_DIRTY_AT` | Stacked a=T dirty overlays on/off (WezTerm experiment) |
 | `SDL_KITTY_FB_DIFF*` / `PINGPONG` / `PLACE_CELLS` / `FB_ALPHA` | Present path |
 | `SDL_KITTY_PROFILES` | Path or `:`-separated list of TOML file(s) |
-| `SDL_KITTY_DEBUG=1` | Log `term=` / `profiles=` source |
+| `SDL_KITTY_DEBUG=1` | Log `term=` / presents (needs `-DSDL_KITTY_RUNTIME_DEBUG=ON` at cmake) |
+| `SDL_KITTY_PERF_ACK=1` | Wait for graphics OK after `a=T` (needs `-DSDL_KITTY_PERF_ACK=ON`; leave off for interactive) |
+| `SDL_KITTY_KEY_DEBUG` / `MOUSE_DEBUG` | Key / mouse dumps (also need `-DSDL_KITTY_RUNTIME_DEBUG=ON`) |
 
 ## Phases
 

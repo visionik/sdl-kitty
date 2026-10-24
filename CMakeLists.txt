@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.16)
 project(sdl-kitty-meta C)
 
 option(SDL_KITTY_BUILD_EXAMPLES "Build sdl-kitty examples" ON)
+# Compile-time: present/debug stderr logs (SDL_KITTY_DEBUG env). Default OFF for perf.
+option(SDL_KITTY_RUNTIME_DEBUG "Compile kitty runtime debug logging" OFF)
+# Compile-time: wait for Gi=;OK after a=T (SDL_KITTY_PERF_ACK env). Default OFF.
+option(SDL_KITTY_PERF_ACK "Compile optional PERF_ACK present waits" OFF)
 
 # Build SDL3 with the Kitty video driver enabled (sources live in the submodule).
 set(SDL_KITTY ON CACHE BOOL "Use Kitty graphics protocol video driver" FORCE)
@@ -14,13 +18,18 @@ set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/SDL)
 
 # In-tree demos: fall back to repo config/terminals.toml when SDL_KITTY_PROFILES unset.
+set(_kitty_defs "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+if(SDL_KITTY_RUNTIME_DEBUG)
+  list(APPEND _kitty_defs "SDL_KITTY_RUNTIME_DEBUG=1")
+endif()
+if(SDL_KITTY_PERF_ACK)
+  list(APPEND _kitty_defs "SDL_KITTY_PERF_ACK=1")
+endif()
 if(TARGET SDL3-shared)
-  target_compile_definitions(SDL3-shared PRIVATE
-    "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+  target_compile_definitions(SDL3-shared PRIVATE ${_kitty_defs})
 endif()
 if(TARGET SDL3-static)
-  target_compile_definitions(SDL3-static PRIVATE
-    "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+  target_compile_definitions(SDL3-static PRIVATE ${_kitty_defs})
 endif()
 
 if(SDL_KITTY_BUILD_EXAMPLES)

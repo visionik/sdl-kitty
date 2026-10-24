@@ -161,9 +161,18 @@ Present debug lines include:
 | `ms_tx=` | Client wall time for compress + encode + write |
 | `ms_ack=` | Host round-trip wait for `Gi=<id>;OK` (`-1` if not measured) |
 
-Enable ack timing with `SDL_KITTY_PERF_ACK=1` (syncs presents to host processing — slower, but includes inflate). Every 60 presents also logs `perf_summary`.
+Debug present lines and ack waits are **compile-time gated** (default OFF for release perf):
+
+| CMake option | Runtime env | Effect |
+|---|---|---|
+| `-DSDL_KITTY_RUNTIME_DEBUG=ON` | `SDL_KITTY_DEBUG=1` | Present / probe / init stderr logs |
+| `-DSDL_KITTY_PERF_ACK=ON` | `SDL_KITTY_PERF_ACK=1` | Wait for `Gi=<id>;OK` after each full `a=T` (~100 ms cap; slower) |
+
+Without those cmake flags, `SDL_KITTY_DEBUG` / `SDL_KITTY_PERF_ACK` env vars are no-ops (code compiled out). Full `a=T` / `a=f` / `a=p` hot paths use `q=2` so hosts do not reply OK on the wire.
 
 ```bash
+cmake -B build -DSDL_KITTY_RUNTIME_DEBUG=ON -DSDL_KITTY_PERF_ACK=ON
+cmake --build build
 SDL_KITTY_DEBUG=1 SDL_KITTY_PERF_ACK=1 ./scripts/run-with-kitty-sdl.sh ./build/dirty_rects_demo
 python3 scripts/kitty_perf_summary.py /tmp/sdl_kitty_debug.log
 ```
@@ -174,9 +183,9 @@ Compare zlib vs direct: lower `wire` with higher `ms_tx`/`ms_ack` means compress
 
 **Visual (Rex):** expect `-> direct` and `solid_present` / paint still work. On Kitty.app/Ghostty local without force, may select `shm`.
 
-## Step 3 — `C=1` / `N=1` / `p=1` on place (done)
+## Step 3 — `C=1` / `N=1` / `p=1` / `q=2` on place (done)
 
-**Verified:** 2026-10-22 — header unit tests; Rex `solid_present` + fullpane paint aligned.
+**Verified:** 2026-10-22 — header unit tests; Rex `solid_present` + fullpane paint aligned. Quiet `q=2` added later for release perf (no APC OK replies on the hot path).
 
 **Goal:** Every full `a=T` present includes:
 
@@ -185,6 +194,7 @@ Compare zlib vs direct: lower `wire` with higher `ms_tx`/`ms_ack` means compress
 | `C=1` | Do not advance the cursor after place |
 | `N=1` | Transient image hint (evict sooner under quota) |
 | `p=1` | Stable placement id per image id |
+| `q=2` | Quiet — suppress APC OK replies (no result polling needed) |
 
 Still ping-pongs image ids 1↔2 and deletes the previous (flicker-safe). Same-`(i,p)` replace without delete is left for later if needed.
 

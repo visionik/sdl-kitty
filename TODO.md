@@ -32,7 +32,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [ ] Optional: XTVERSION probe when `TERM_PROGRAM_VERSION` unset (SSH)
 - [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
 - [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (PTY flood / input)
-- [ ] WezTerm: diagnose arrow keys dying under MAME (PTY backlog vs kitty keyboard / CSI-u)
+- [ ] **WezTerm: arrow keys stop after ~1–2s under MAME** (still open 2026-10-24) — Galaga playable briefly then left/right die while game keeps running. Suspect PTY backlog from full-frame direct/zlib `a=T` (~960×540) starving stdin / CSI-u, not a one-shot key-map bug (`key_probe` OK alone). Diagnose: client (throttle presents / smaller FB / prefer_zlib wire) vs host (a=f hash invalidate + #8063 SHM so sparse path works). Repro: WezTerm + `mame-kitty.sh galaga`. Related upstream items below.
 - [x] **dirty_at overlays experiment** — implemented; **hangs/panics WezTerm 20240203** (see upstream item). Profile default **off**; opt-in `SDL_KITTY_DIRTY_AT=1` only. Client mitigations below if we revive the experiment before upstream lands.
 
 ---

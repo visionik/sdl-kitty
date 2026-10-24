@@ -83,6 +83,7 @@ static void test_format_place_keys(void)
     expect_true(strstr(buf, "C=1") != NULL, "has C=1");
     expect_true(strstr(buf, "N=1") != NULL, "has N=1");
     expect_true(strstr(buf, "p=1") != NULL, "has p=1");
+    expect_true(strstr(buf, "q=2") != NULL, "has q=2 quiet");
     expect_true(strstr(buf, "c=80") != NULL, "has c=80");
     expect_true(strstr(buf, "r=24") != NULL, "has r=24");
     expect_true(strstr(buf, "f=24") != NULL, "has f=24");
