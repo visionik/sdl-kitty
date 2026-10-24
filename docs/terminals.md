@@ -63,6 +63,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | 2026-10-24 | Rex | MAME pacman after af_max=0.40 + keep tile-diff bbox | Looks great. Large dirties → `dirty_cpu` zlib (~12–110 KB) vs old ~2.8 MB `a=f`; sparse still `dirty_bw` (e.g. 96×480). `tile-diff FULL bbox=… (kept bbox)` logged. |
 | 2026-10-24 | Rex | galaga + mouse_paint under zlib/af_max=0.40 | Looks great. Galaga: sparse `dirty_bw` + zlib `dirty_cpu` on tile-diff FULL. Paint: tiny `dirty_bw` (~8–16 KB), avg_ms_tx~0.14. |
 | 2026-10-24 | Ghostty tip | fireworks / dvd_sprite / alpha_blit re-soak | Looks great. `-> shm`, `dirty_bw=on`; dvd sparse a=f; fw bursts → full SHM (`wire=256`); alpha coalesce `6→3`. Quit abort still non-blocking. |
+| 2026-10-24 | Kitty.app 0.49.2 | fireworks / dvd_sprite / alpha_blit re-soak | Looks great. `-> shm`, `dirty_bw=on` on fw/dvd. Alpha: full SHM every frame (`wire=256`, no coalesce) — multi-rect totals exceed `af_max_pixels=163840` → intentional SHM fallback (no base64 wall). |
 
 ### Rex soak suite (2026-10-23, post profile + drain)
 
