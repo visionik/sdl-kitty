@@ -35,6 +35,14 @@ ctest --test-dir build -R kitty_rect_utils_test --output-on-failure
 present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C convert_px=… upload_px=… -> ok
 ```
 
+## Step 1e — Coalesce dirty rects (Exp 5)
+
+**Goal:** Before multi-rect `a=f`, merge overlapping or near rects (expanded by `coalesce_gap_px`) so fewer APC edits.
+
+**TOML:** `coalesce_gap_px = 2` (0 = off). Env: `SDL_KITTY_COALESCE_GAP`.
+
+**Notes:** Helps Ghostty/Kitty/Rex multi-`a=f` (e.g. `alpha_blit`). On WezTerm without working `a=f`, little wire effect. Log: `coalesce N -> M rects (gap=G)`.
+
 ## Step 1d — Upload skip (Exp 6)
 
 **Goal:** If the full RGB scratch FNV-1a matches the last successful upload, skip the wire present (`mode=upload_skip`).

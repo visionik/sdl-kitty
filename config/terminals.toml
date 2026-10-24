@@ -101,9 +101,11 @@ prefer_zlib = false
 silent_af_ok = false
 # Tip has real a=f: allow direct sparse edits while full frames stay SHM.
 direct_af_when_shm = true
+# Exp 5 soak: merge near dirty rects before multi a=f.
+coalesce_gap_px = 2
 # apc.zig Protocol.defaultMaxBytes(.kitty) = 65 MiB
 apc_chunk_bytes = 68157440
-notes = "Ghostty tip/≥1.3.2: SHM + a=f (#13943); direct_af_when_shm; APC ≤65MiB; Exp2: zlib≪direct but SHM wins"
+notes = "Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB"
 
 [[terminal]]
 id = "wezterm"
@@ -125,9 +127,10 @@ direct_af_when_shm = false
 dirty_at_overlays = false
 # Exp 6: skip identical full-scratch uploads (FNV).
 upload_skip = true
+coalesce_gap_px = 2
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer_zlib; upload_skip; no SHM (#8063); a=f no invalidate; dirty_at off; FB 960x540"
+notes = "WezTerm: prefer_zlib; upload_skip; coalesce_gap=2; no SHM (#8063); a=f off; FB 960x540"
 
 [[terminal]]
 id = "unknown"

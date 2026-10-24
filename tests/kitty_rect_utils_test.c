@@ -319,6 +319,37 @@ static void test_fnv1a64(void)
     expect_true(ha != hb, "fnv differs on change");
 }
 
+static void test_coalesce_rects(void)
+{
+    SDL_Rect in[3];
+    SDL_Rect out[8];
+    int n;
+
+    /* Overlapping → one. */
+    in[0] = (SDL_Rect){ 10, 10, 20, 20 };
+    in[1] = (SDL_Rect){ 20, 20, 20, 20 };
+    n = KITTY_CoalesceRects(200, 200, in, 2, 0, out, 8);
+    expect_int(n, 1, "overlap coalesce count");
+    expect_int(out[0].x, 10, "overlap x");
+    expect_int(out[0].y, 10, "overlap y");
+    expect_int(out[0].w, 30, "overlap w");
+    expect_int(out[0].h, 30, "overlap h");
+
+    /* Near within gap=2 → one; gap=0 stays two. */
+    in[0] = (SDL_Rect){ 0, 0, 10, 10 };
+    in[1] = (SDL_Rect){ 11, 0, 10, 10 }; /* 1px gap */
+    n = KITTY_CoalesceRects(200, 200, in, 2, 0, out, 8);
+    expect_int(n, 2, "gap0 keeps two");
+    n = KITTY_CoalesceRects(200, 200, in, 2, 2, out, 8);
+    expect_int(n, 1, "gap2 merges near");
+
+    /* Far apart stay separate. */
+    in[0] = (SDL_Rect){ 0, 0, 10, 10 };
+    in[1] = (SDL_Rect){ 100, 100, 10, 10 };
+    n = KITTY_CoalesceRects(200, 200, in, 2, 2, out, 8);
+    expect_int(n, 2, "far stay two");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -345,6 +376,7 @@ int main(int argc, char **argv)
     test_fb_rect_to_place_cells();
     test_fb_pixel_to_cell_cursor();
     test_fnv1a64();
+    test_coalesce_rects();
 
     SDL_Quit();
     if (failures) {

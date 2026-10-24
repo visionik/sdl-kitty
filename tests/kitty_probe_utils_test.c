@@ -154,6 +154,14 @@ static void test_select_upload_skip(void)
     expect_true(!KITTY_SelectUploadSkip("0", true), "env 0");
 }
 
+static void test_select_coalesce_gap(void)
+{
+    expect_int(KITTY_SelectCoalesceGap(NULL, 2), 2, "unset uses profile");
+    expect_int(KITTY_SelectCoalesceGap("0", 2), 0, "env 0 off");
+    expect_int(KITTY_SelectCoalesceGap("off", 2), 0, "env off");
+    expect_int(KITTY_SelectCoalesceGap("4", 2), 4, "env 4");
+}
+
 static void test_select_pingpong(void)
 {
     expect_true(!KITTY_SelectPingPong(NULL, false), "default replace (no pingpong)");
@@ -209,6 +217,7 @@ int main(int argc, char **argv)
     test_select_dirty_bw();
     test_select_dirty_at();
     test_select_upload_skip();
+    test_select_coalesce_gap();
     test_select_pingpong();
     test_select_modes();
     SDL_Quit();
