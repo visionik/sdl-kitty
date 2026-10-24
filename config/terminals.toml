@@ -46,12 +46,14 @@ shm_unlink_after_send = false
 id = "rex"
 match.term_program = ["rex"]
 prefer_direct = true
-af_max_coverage = 0.95
-af_max_pixels = 921600              # 1280*720
+# Full-frame a=f OK on Rex (avoids a=T flash). Gate is cov < max, so 1.01 not 1.0.
+# Keep fb_diff on for MAME soft; driver must not skip a=f on DIFF_FULL (see framebuffer).
+af_max_coverage = 1.01
+af_max_pixels = 2073600             # 1920*1080
 silent_af_ok = true
 ignore_ioctl_pixels = true
 direct_af_when_shm = true
-notes = "libghostty default disables t=s (a=q → EINVAL unsupported medium); prefer direct"
+notes = "prefer direct; full-frame a=f (no a=T flash); t=s often unsupported medium"
 
 [[terminal]]
 id = "kitty"
