@@ -47,6 +47,8 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 **Rex soak (2026-10-24):** `dirty_bw` baseline OK; coalesce ON `6 -> 2` / `6 -> 1` with lower `upload_px` than gap=0 on `alpha_blit`. Enabled `coalesce_gap_px = 2` on Rex profile. `a=f` wire/ms counters fixed in `TransmitRGBRectEdit` (were stuck at 0).
 
+**Rex MAME soft wire (2026-10-24):** tile-diff `DIFF_FULL` no longer expands dirty to the full FB (keeps tile bbox). Rex `af_max_coverage` lowered `1.01 → 0.40` so large dirties use zlib full `a=T` instead of multi‑MB `a=f`. Watch for a=T flash; revert coverage with profile/`SDL_KITTY_AF_MAX_COVERAGE` if needed.
+
 ## Step 1f — Single union `a=T` (Exp 3)
 
 **Goal:** Safer WezTerm sparse path than multi `dirty_at`: one overlay per frame covering the dirty **union**, with DECSC/DECRC around CUP, place_cells `c`/`r` stretch, and skip when the place-cells box touches the screen edge.

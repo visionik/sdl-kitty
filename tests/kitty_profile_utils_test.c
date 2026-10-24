@@ -70,7 +70,7 @@ static void test_builtin_fallback(void)
     expect_true(p->prefer_direct, "builtin rex prefer_direct");
     expect_true(p->ignore_ioctl_pixels, "builtin rex ignore_ioctl");
     expect_true(p->direct_af_when_shm, "builtin rex direct_af_when_shm");
-    expect_float_near(p->af_max_coverage, 0.95f, "builtin rex af_max_coverage");
+    expect_float_near(p->af_max_coverage, 0.40f, "builtin rex af_max_coverage");
     expect_str(KITTY_TerminalProfilesSource(), "builtin", "source builtin");
 }
 
@@ -113,7 +113,7 @@ static void test_load_shipped_toml(void)
     expect_true(p->silent_af_ok, "loaded rex silent_af_ok");
     expect_true(p->ignore_ioctl_pixels, "loaded rex ignore_ioctl");
     expect_true(p->direct_af_when_shm, "loaded rex direct_af_when_shm");
-    expect_float_near(p->af_max_coverage, 1.01f, "loaded rex af coverage");
+    expect_float_near(p->af_max_coverage, 0.40f, "loaded rex af coverage");
     expect_int((int)p->af_max_pixels, 1920 * 1080, "loaded rex af pixels");
     expect_int(p->default_fb_max_w, 1280, "loaded rex fb w from defaults");
     expect_int(p->default_fb_max_h, 720, "loaded rex fb h from defaults");

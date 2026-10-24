@@ -22,12 +22,12 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **Prefer transmit** | **direct** | **shm** if ok | **shm** if ok | **shm** if ok | **direct** | shm if ok |
 | **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 960×540 | 1280×720 |
 | **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
-| **`a=f` max coverage** | **1.01** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
-| **`a=f` max pixels** | **2073k** | 160k | 160k | 160k | 160k | 160k |
+| **`a=f` max coverage** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
+| **`a=f` max pixels** | 2073k | 160k | 160k | 160k | 160k | 160k |
 | **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
 | **ignore ioctl pixels** | yes | no | no | no | no | no |
 | **direct a=f when SHM** | yes | yes | no | yes | no | no |
-| **Notes** | prefer_direct+zlib; full-frame a=f; coalesce=2; t=s unsupported | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off | Fallback when TERM_PROGRAM / TERM match nothing |
+| **Notes** | prefer_direct+zlib; af_max_cov=0.40; coalesce=2; t=s unsupported | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 

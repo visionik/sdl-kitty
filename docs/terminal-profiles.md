@@ -27,7 +27,7 @@ Across files: first successful file replaces the table; further files in `SDL_KI
 | `coalesce_gap_px` | int | Merge dirty rects within this pixel gap before multi a=f (0=off) |
 | `default_fb_max` | `"WxH"` | Aspect-fit FB cap when `SDL_KITTY_FB_MAX` unset; empty/`0` = no default |
 | `max_direct_bytes` | int | Refuse direct a=T / a=f above this raw size |
-| `af_max_coverage` | float | Skip union a=f when dirty coverage ≥ this |
+| `af_max_coverage` | float | Skip union a=f when dirty coverage ≥ this (env: `SDL_KITTY_AF_MAX_COVERAGE`) |
 | `af_max_pixels` | int | Skip a=f when dirty px ≥ this (also per-rect multi-a=f cap) |
 | `keys_on_stdin` | bool | Read keyboard from stdin when it is a tty |
 | `silent_af_ok` | bool | a=f probe: silent (no APC reply) counts as success |

@@ -49,16 +49,18 @@ prefer_direct = true
 # Exp 2 Rex soak (2026-10-24): o=z full a=T OK (solid/dirty/alpha); big wire win vs raw.
 # a=f stays t=d either way — zlib only helps full a=T (init/resize/fallback).
 prefer_zlib = true
-# Full-frame a=f OK on Rex (avoids a=T flash). Gate is cov < max, so 1.01 not 1.0.
-# Keep fb_diff on for MAME soft; driver must not skip a=f on DIFF_FULL (see framebuffer).
-af_max_coverage = 1.01
+# Large dirties → zlib full a=T (was 1.01 = always a=f, ~2.8MB/frame on MAME soft).
+# Watch for a=T flash; kill with SDL_KITTY_AF_MAX_COVERAGE=1.01 if needed.
+af_max_coverage = 0.40
 af_max_pixels = 2073600             # 1920*1080
 silent_af_ok = true
 ignore_ioctl_pixels = true
 direct_af_when_shm = true
 # Exp 5 Rex soak: alpha_blit 6→1/2; lower upload_px than gap=0.
 coalesce_gap_px = 2
-notes = "prefer_direct+zlib; full-frame a=f; coalesce=2; t=s unsupported"
+# Keep fb_diff on for MAME soft (tile bbox; no longer expands DIFF_FULL to full FB).
+fb_diff = true
+notes = "prefer_direct+zlib; af_max_cov=0.40; coalesce=2; t=s unsupported"
 
 [[terminal]]
 id = "kitty"
