@@ -75,7 +75,9 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 **TOML:** `upload_skip = true` (default via profile tunables). Kill: `SDL_KITTY_UPLOAD_SKIP=0`.
 
-**Notes:** Complements tile-diff (soft full flips). Helps WezTerm when apps pass dirty rects but pixels are unchanged. Hash invalidated on resize / scratch rebuild.
+**Notes:** Complements tile-diff (soft full flips). Helps WezTerm when apps pass dirty rects but pixels are unchanged. Hash invalidated on resize / scratch rebuild. For a clean A/B, set `SDL_KITTY_FB_DIFF=0` — otherwise tile-diff `diff_skip` wins first on identical frames.
+
+**Rex soak (2026-10-24):** `static_present` + `FB_DIFF=0`: ON → `#0` full then `mode=upload_skip` (`upload_px=0`); OFF → repeated full-frame `dirty_bw` (`af_max_coverage=1.01`). Kept default on.
 
 ## Step 1c — Dirty `a=T` overlays (experiment, WezTerm)
 
