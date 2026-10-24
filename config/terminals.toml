@@ -122,15 +122,16 @@ prefer_zlib = true
 # silent_af_ok would enable dirty_bw that never paints (bg tint OK, yellow gone).
 silent_af_ok = false
 direct_af_when_shm = false
-# dirty_at overlays crash WezTerm 20240203 (assign_image_to_cells overflow /
-# NotNan add in term/src/terminalstate/image.rs). Keep off; opt-in only.
+# dirty_at overlays crash WezTerm 20240203 — keep multi off.
 dirty_at_overlays = false
+# Exp 3 killed: overlays cannot erase stale base without a=f (see optimizations.md).
+dirty_union_at = false
 # Exp 6: skip identical full-scratch uploads (FNV).
 upload_skip = true
 coalesce_gap_px = 2
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer_zlib; upload_skip; coalesce_gap=2; no SHM (#8063); a=f off; FB 960x540"
+notes = "WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off"
 
 [[terminal]]
 id = "unknown"

@@ -43,6 +43,30 @@ present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C conve
 
 **Notes:** Helps Ghostty/Kitty/Rex multi-`a=f` (e.g. `alpha_blit`). On WezTerm without working `a=f`, little wire effect. Log: `coalesce N -> M rects (gap=G)`.
 
+**Ghostty tip soak (2026-10-24):** `alpha_blit` coalesce ON logs `6 -> 3` / `6 -> 2` (gap=2); OFF (`COALESCE_GAP=0`) keeps `rects=6`. Wire/ms_tx flat (~256 / 0.56) on SHM — coalesce cuts APC count, not SHM payload size. Kept on Ghostty tip + WezTerm profiles.
+
+## Step 1f — Single union `a=T` (Exp 3)
+
+**Goal:** Safer WezTerm sparse path than multi `dirty_at`: one overlay per frame covering the dirty **union**, with DECSC/DECRC around CUP, place_cells `c`/`r` stretch, and skip when the place-cells box touches the screen edge.
+
+**TOML:** `dirty_union_at = false` (killed after soak). Env: `SDL_KITTY_DIRTY_UNION_AT=0|1` still forces.
+
+**Behavior (code retained):**
+
+- Same `af_max_coverage` / `af_max_pixels` gates as `a=f`
+- Clears previous overlays, places one `a=T` at z=10
+- Debug: `mode=dirty_union` with `upload_px == convert_px`
+- Falls through to full `a=T` on edge / pack / transmit failure
+
+**WezTerm soak (2026-10-24) — killed:**
+
+- Engaged (`mode=dirty_union`), no hang with single overlay + edge skip + DECSC/DECRC.
+- Visuals wrong: dual yellow boxes / trails. Root cause in WezTerm cell model: Kitty style uses `attach_image` (z-stack), so the base full `a=T` keeps old yellow pixels while the overlay paints the new union on top. Overlay delete only removes the overlay id; it cannot mutate the base.
+- Natural size (`c`/`r`=0): tiny jumpy overlay + trails.
+- With `c`/`r`: better scale, still dual-box (stale base + overlay).
+- Wire ~same as full zlib blue on `dirty_rects_demo` (~8.3 vs 8.7 KB).
+- Real fix remains upstream **a=f `ImageData.hash` invalidate** (hash is creation-time only; GPU/dedup key never refreshes after `kitty_frame_transmit`).
+
 ## Step 1d — Upload skip (Exp 6)
 
 **Goal:** If the full RGB scratch FNV-1a matches the last successful upload, skip the wire present (`mode=upload_skip`).

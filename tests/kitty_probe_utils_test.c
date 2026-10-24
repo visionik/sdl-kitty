@@ -146,6 +146,15 @@ static void test_select_dirty_at(void)
     expect_true(!KITTY_SelectDirtyAT("off", true), "env off forces off");
 }
 
+static void test_select_dirty_union_at(void)
+{
+    expect_true(!KITTY_SelectDirtyUnionAT(NULL, false), "unset + profile off");
+    expect_true(KITTY_SelectDirtyUnionAT(NULL, true), "unset + profile on");
+    expect_true(KITTY_SelectDirtyUnionAT("1", false), "env 1");
+    expect_true(!KITTY_SelectDirtyUnionAT("0", true), "env 0");
+    expect_true(!KITTY_SelectDirtyUnionAT("false", true), "env false");
+}
+
 static void test_select_upload_skip(void)
 {
     expect_true(!KITTY_SelectUploadSkip(NULL, false), "unset + profile off");
@@ -216,6 +225,7 @@ int main(int argc, char **argv)
     test_classify_resize();
     test_select_dirty_bw();
     test_select_dirty_at();
+    test_select_dirty_union_at();
     test_select_upload_skip();
     test_select_coalesce_gap();
     test_select_pingpong();

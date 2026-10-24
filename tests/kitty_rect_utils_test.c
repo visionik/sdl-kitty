@@ -350,6 +350,17 @@ static void test_coalesce_rects(void)
     expect_int(n, 2, "far stay two");
 }
 
+static void test_place_cells_touches_edge(void)
+{
+    /* Interior 2×2 box on 10×10 grid (0-based col0/row0). */
+    expect_true(!KITTY_PlaceCellsTouchesEdge(2, 2, 2, 2, 10, 10), "interior ok");
+    expect_true(KITTY_PlaceCellsTouchesEdge(0, 2, 2, 2, 10, 10), "left edge");
+    expect_true(KITTY_PlaceCellsTouchesEdge(2, 0, 2, 2, 10, 10), "top edge");
+    expect_true(KITTY_PlaceCellsTouchesEdge(8, 2, 2, 2, 10, 10), "right edge");
+    expect_true(KITTY_PlaceCellsTouchesEdge(2, 8, 2, 2, 10, 10), "bottom edge");
+    expect_true(KITTY_PlaceCellsTouchesEdge(1, 1, 0, 1, 10, 10), "zero place -> edge");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -377,6 +388,7 @@ int main(int argc, char **argv)
     test_fb_pixel_to_cell_cursor();
     test_fnv1a64();
     test_coalesce_rects();
+    test_place_cells_touches_edge();
 
     SDL_Quit();
     if (failures) {

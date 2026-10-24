@@ -47,7 +47,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [ ] **a=f success reply** — successful `kitty_frame_transmit` is silent; only errors call `kitty_send_response`. Emit `OK` (optionally with `r=`) so clients need not rely on `silent_af_ok`.
 - [ ] **macOS SHM `t=s`** — open PR [#8063](https://github.com/wezterm/wezterm/pull/8063) (mmap instead of seek/read). Review/land or rebase; unblocks prefer SHM.
 - [ ] After SHM + a=f invalidate: re-soak galaga (expect keys + pace to recover when not flooding PTY with base64).
-- [ ] If reviving dirty_at before a=f invalidate: client-side DECSC/DECRC, no overlay `c`/`r`, and/or skip edge-touching cell boxes (see docs/optimizations.md Step 1c).
+- [ ] Exp 3 `dirty_union_at` killed on WezTerm (2026-10-24): no hang, but dual-box/trails — overlays cannot erase stale base pixels; WezTerm Kitty cells `attach_image` by z-index. Code+env kept off. Do not revive overlays until a=f hash invalidate lands (preferred) or a host that replaces cell images.
 
 ### Ghostty (`~/Projects/ghostty`)
 
