@@ -74,6 +74,6 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | `alpha_blit` Kitty | SHM a=f blanked; multi-rect direct a=f → base64 wall; **no direct a=f on SHM sessions** (full SHM a=T) |
 | 2026-10-23 | Ghostty | key_probe OK | — |
 | 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1. Profile `ghostty-1.3` (version ≤1.3.1): dirty_bw off. |
-| 2026-10-24 | Ghostty Tip `1.3.2-main+22f100c63` | `term=ghostty`; `frame_edit ok → dirty_bw=on`; yellow block via sparse a=f | Real tip from tip.files.ghostty.org (GH tip DMG was stale=1.3.1). Parser fix: accept `Gi=,r=1;OK`. |
+| 2026-10-24 | Ghostty Tip `1.3.2-main+22f100c63` | dirty_rects/alpha/fireworks/galaga OK; `dirty_bw=on`; sparse a=f when coverage low | Real tip from tip.files.ghostty.org (GH tip DMG was stale=1.3.1). Parser fix: `Gi=,r=1;OK`. Galaga mixes dirty_bw + full SHM. |
 | 2026-10-23 | Kitty.app | a=q/a=f OK; shm; key_probe OK; fireworks needs a=f→SHM on big dirties | default FB was uncapped → base64 |
 | — | WezTerm | TBD | — |

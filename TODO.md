@@ -26,6 +26,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [x] Ghostty 1.3.1 soak: alpha, fireworks, galaga (full SHM a=T; smooth)
 - [x] Version match: `match.term_program_version_min/max` + `ghostty-1.3` / tip rows
 - [x] Ghostty tip dirty_bw soak (yellow a=f); GQ parser accepts `Gi=,r=N;OK`
+- [x] Ghostty tip: alpha, fireworks, galaga OK (sparse a=f + SHM full)
 - [ ] Optional: XTVERSION probe when `TERM_PROGRAM_VERSION` unset (SSH)
 
 ---
