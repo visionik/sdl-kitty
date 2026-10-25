@@ -29,7 +29,7 @@ ctest --test-dir build -R kitty_rect_utils_test --output-on-failure
 
 **Visual:** `build/dirty_rects_demo` with `SDL_KITTY_DEBUG=1` — bouncing rect should log `dirty_cpu` / `dirty_bw`; `full` only on first frame or failed edit.
 
-**Debug log** (`SDL_KITTY_DEBUG=1` → `/tmp/sdl_kitty_debug.log`):
+**Debug log** (`SDL_KITTY_DEBUG=1`, needs `-DSDL_KITTY_RUNTIME_DEBUG=ON`) → stderr / redirected file:
 
 ```text
 present #N WxH place=P mode=dirty_cpu|full rects=R union=Uw×Uh coverage=C convert_px=… upload_px=… -> ok
@@ -181,7 +181,7 @@ Compare zlib vs direct: lower `wire` with higher `ms_tx`/`ms_ack` means compress
 
 **Tests:** `ctest -R kitty_probe_utils_test`
 
-**Visual (Rex):** expect `-> direct` and `solid_present` / paint still work. On Kitty.app/Ghostty local without force, may select `shm`.
+**Visual (Rex):** with current profile expect `-> zlib` (prefer_zlib); `solid_present` / paint still work. On Kitty.app/Ghostty local without force, may select `shm`.
 
 ## Step 3 — `C=1` / `N=1` / `p=1` / `q=2` on place (done)
 

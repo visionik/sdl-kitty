@@ -118,7 +118,7 @@ notes = "Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB"
 id = "wezterm"
 match.term_program = ["WezTerm", "wezterm"]
 match.term_substring = ["wezterm"]
-# Cap FB — stuck on full direct a=T (no SHM, no working a=f display).
+# Cap FB (no SHM, no working a=f display → full a=T / zlib each changing frame).
 default_fb_max = "1280x720"
 # macOS: t=s seek/read → ENXIO until wezterm#8063 (mmap). Prefer direct.
 prefer_direct = true

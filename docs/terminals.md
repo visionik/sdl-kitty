@@ -14,12 +14,12 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 |   | Rex | Kitty.app | Ghostty ≤1.3.1 | Ghostty tip+ | WezTerm | Unknown |
 |---|---|---|---|---|---|---|
 | **Detect** | `TERM_PROGRAM=rex` | `kitty` or empty + `TERM=xterm-kitty` | `ghostty` ≤`1.3.1` | `ghostty` | `WezTerm` / `wezterm` | else |
-| **Graphics `a=q` direct** | OK (often) | OK | OK | OK | TBD | probe |
-| **SHM `t=s`** | `a=T` works when forced; `a=q` often silent/fail → still prefer direct | OK | OK | OK | TBD | probe |
-| **zlib `o=z`** | reject | varies | varies | varies | TBD | probe |
-| **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | TBD | probe |
-| **Keyboard CSI-u** | OK | OK | OK | OK | TBD | probe |
-| **Prefer transmit** | **direct** | **shm** if ok | **shm** if ok | **shm** if ok | **direct** | shm if ok |
+| **Graphics `a=q` direct** | OK (often) | OK | OK | OK | OK | probe |
+| **SHM `t=s`** | `a=T` works when forced; `a=q` often silent/fail → still prefer direct | OK | OK | OK | fail (macOS #8063) | probe |
+| **zlib `o=z`** | OK (prefer) | varies | varies | varies | OK (prefer) | probe |
+| **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | probe OK / display no-op (hash) | probe |
+| **Keyboard CSI-u** | OK | OK | OK | OK | needs `enable_kitty_keyboard` | probe |
+| **Prefer transmit** | **zlib** | **shm** if ok | **shm** if ok | **shm** if ok | **zlib** | shm if ok |
 | **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 1280×720 | 1280×720 |
 | **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
 | **`a=f` max coverage** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
@@ -81,7 +81,6 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1. Profile `ghostty-1.3` (version ≤1.3.1): dirty_bw off. |
 | 2026-10-24 | Ghostty Tip `1.3.2-main+22f100c63` | dirty_rects/alpha/fireworks/galaga OK; `dirty_bw=on`; sparse a=f when coverage low | Real tip from tip.files.ghostty.org (GH tip DMG was stale=1.3.1). Parser fix: `Gi=,r=1;OK`. Galaga mixes dirty_bw + full SHM. |
 | 2026-10-24 | Kitty.app 0.49.2 | dirty_rects/alpha/fireworks/galaga OK; SHM + dirty_bw; alpha no base64 spew | Source-aligned: `direct_af_when_shm`; multi-rect `af_max_*` totals; `apc_chunk_bytes=261888` (Kitty 256KiB APC max). Ghostty APC=65MiB. |
-| 2026-10-24 | WezTerm 20240203 | dirty/alpha/fw OK at 960×540; galaga playable but slow; arrows die after ~1–2s | Prefer direct (macOS SHM #8063); a=f no GPU invalidate → dirty_bw off. |
-| 2026-10-25 | WezTerm 20240203 | Arrow “die” was **`enable_kitty_keyboard=false`** (CSI > 11 u ignored; no PTY key-ups). With `enable_kitty_keyboard=true`, Galaga hold-left is smooth. Driver probes `CSI ? u`, warns once on WezTerm if unanswered, and falls back to ~400 ms arrow auto-up. | Not graphics/PTY load. |
+| 2026-10-24 | WezTerm 20240203 | dirty/alpha/fw OK at then-960×540; galaga playable but slow; arrows die after ~1–2s | a=f no GPU invalidate → dirty_bw off; SHM #8063. Arrow cause revised next day. |
+| 2026-10-25 | WezTerm 20240203 | Arrows fixed via **`enable_kitty_keyboard=true`**; probe `CSI ? u` + warn/fallback; FB cap **1280×720** (e.g. galaga `fb=1050x720`) | Not PTY/graphics load. |
 | 2026-10-23 | Kitty.app | a=q/a=f OK; shm; key_probe OK; fireworks needs a=f→SHM on big dirties | default FB was uncapped → base64 |
-| — | WezTerm | TBD | — |

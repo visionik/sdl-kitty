@@ -33,6 +33,7 @@ On enter, the driver sends:
 
 ```text
 CSI > 11 u          # flags 1|2|8 — disambiguate, event types, all keys as CSI
+CSI ? u             # probe: expect CSI ? <flags> u → kitty_keyboard_ok
 ```
 
 On leave:
@@ -42,6 +43,8 @@ CSI < u             # pop mode stack
 ```
 
 See [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/).
+
+If `CSI ? u` is unanswered, `kitty_keyboard_ok` stays false: legacy CSI arrows use min-hold auto-up (not sticky waits for `:3`). WezTerm also logs a one-time warning (see below).
 
 | Flag | Bit | Meaning |
 |---|---|---|
@@ -65,8 +68,8 @@ PumpEvents, termios, and query replies read `tty_in`.
 
 MAME (and similar) drain the SDL event queue then sample `SDL_GetKeyboardState`. Legacy keys with no release would vanish in one pump.
 
-- CSI-u with event-type field: real press / repeat / release
-- Legacy / ASCII (no release): keep down for ~80ms min-hold, then synthesize up
+- When `kitty_keyboard_ok` (or a CSI with an `:event` subfield): real press / repeat / release (`:3`)
+- Legacy / ASCII with no release expected: min-hold auto-up — profile `key_hold_ms` (default **80 ms**); **arrows / home / end / page** use at least **400 ms** so OS key-repeat delay does not feel like a dead stick
 
 ## Focus
 
@@ -74,12 +77,12 @@ MAME (and similar) drain the SDL event queue then sample `SDL_GetKeyboardState`.
 
 ## WezTerm: `enable_kitty_keyboard`
 
-WezTerm defaults **`enable_kitty_keyboard = false`**. Until that is true, it **ignores** our `CSI > 11 u` push and stays on Xterm encoding (key-down + OS autorepeat only; **no key-ups** on the PTY).
+WezTerm defaults **`enable_kitty_keyboard = false`**. Until that is true, it **ignores** our `CSI > 11 u` push and stays on Xterm encoding (key-down + OS autorepeat only; **no key-ups** on the PTY). This looked like “arrows die after 1–2 s” under MAME when the client waited forever for `:3`.
 
 At setup the driver probes with **`CSI ? u`**. A `CSI ? <flags> u` reply sets `kitty_keyboard_ok`. On WezTerm with no reply:
 
 - One **`SDL_LogWarn`**: set `enable_kitty_keyboard = true` in `wezterm.lua`
-- Legacy arrows use **min-hold auto-up** (~400 ms) so games stay playable without sticky keys (still less smooth than real press/release)
+- Legacy arrows use **min-hold auto-up** (≥400 ms) so games stay playable (some OS-repeat lag)
 
 ```lua
 -- ~/.config/wezterm/wezterm.lua
@@ -89,7 +92,7 @@ config.enable_kitty_keyboard = true
 return config
 ```
 
-With the flag on, WezTerm `encode_kitty` sends press/release (`\x1b[1;1A` / `\x1b[1;1:3A`) and holds feel correct.
+**Soak (2026-10-25):** with the flag on → `keyboard_protocol ok`, Galaga hold-left smooth, KEY_DEBUG shows `event=1` / `event=3`. With the flag off → warn + `keyboard_protocol off`, playable with OS-repeat lag.
 
 ## Debug
 

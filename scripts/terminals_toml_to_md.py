@@ -26,11 +26,11 @@ END = "<!-- END GENERATED MATRIX -->"
 # Narrative soak / probe rows that are not in TOML (kept beside profile numbers).
 PROBE_ROWS = [
     # columns: rex, kitty, ghostty-1.3, ghostty (tip+), wezterm, unknown
-    ("Graphics `a=q` direct", "OK (often)", "OK", "OK", "OK", "TBD", "probe"),
-    ("SHM `t=s`", "`a=T` works when forced; `a=q` often silent/fail → still prefer direct", "OK", "OK", "OK", "TBD", "probe"),
-    ("zlib `o=z`", "reject", "varies", "varies", "varies", "TBD", "probe"),
-    ("`a=f` frame-edit", "OK / silent≈OK", "OK", "unimplemented 1.3.1", "OK (tip #13943)", "TBD", "probe"),
-    ("Keyboard CSI-u", "OK", "OK", "OK", "OK", "TBD", "probe"),
+    ("Graphics `a=q` direct", "OK (often)", "OK", "OK", "OK", "OK", "probe"),
+    ("SHM `t=s`", "`a=T` works when forced; `a=q` often silent/fail → still prefer direct", "OK", "OK", "OK", "fail (macOS #8063)", "probe"),
+    ("zlib `o=z`", "OK (prefer)", "varies", "varies", "varies", "OK (prefer)", "probe"),
+    ("`a=f` frame-edit", "OK / silent≈OK", "OK", "unimplemented 1.3.1", "OK (tip #13943)", "probe OK / display no-op (hash)", "probe"),
+    ("Keyboard CSI-u", "OK", "OK", "OK", "OK", "needs `enable_kitty_keyboard`", "probe"),
 ]
 
 HOST_ORDER = ["rex", "kitty", "ghostty-1.3", "ghostty", "wezterm", "unknown"]
@@ -105,6 +105,9 @@ def fmt_pixels(n: int) -> str:
 
 
 def prefer_cell(p: dict) -> str:
+    # Matches ProbeTransmitModes: prefer_zlib wins over raw direct when set.
+    if p.get("prefer_zlib"):
+        return "**zlib**"
     if p.get("prefer_direct"):
         return "**direct**"
     tid = p.get("id") or ""

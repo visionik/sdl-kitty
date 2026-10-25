@@ -23,19 +23,21 @@ See the session plan for the full roadmap. Short form:
 
 ## Present path
 
-`SDL_UpdateWindowSurface` → `UpdateWindowFramebuffer` → convert pixels → `KITTY_TransmitRGB`:
+`SDL_UpdateWindowSurface` → `UpdateWindowFramebuffer` → convert pixels → transmit (profile + probe):
 
-1. Try POSIX SHM (`t=s`) unless `SDL_KITTY_TRANSMIT` forces otherwise
-2. Fall back to zlib-compressed direct (`t=d,o=z`)
-3. Fall back to raw chunked base64 (`t=d`)
+1. Probe `a=q` / SHM / optional `a=f`; honor `prefer_direct` / `prefer_zlib` / `SDL_KITTY_TRANSMIT`
+2. Prefer POSIX SHM (`t=s`) when the host accepts it; else zlib (`t=d,o=z`) or raw base64 (`t=d`)
+3. Sparse dirty via `a=f` when `frame_edit_ok` and coverage under `af_max_*`; else full `a=T`
+4. Hot-path APC uses `q=2` (quiet); optional `PERF_ACK` waits for `Gi=;OK` only when compiled in
 
-Uses alternating image ids and deletes the previous id after a successful place (`q=2`).
+Uses alternating image ids and deletes the previous id after a successful place.
 
 ## Input
 
-- Kitty keyboard protocol (`CSI > 11 u` = disambiguate + event types + all keys as CSI); see `docs/keyboard.md`
+- Kitty keyboard protocol (`CSI > 11 u`, then probe `CSI ? u` → `kitty_keyboard_ok`); see `docs/keyboard.md`
+- WezTerm: requires `enable_kitty_keyboard = true` or warn + OS-repeat fallback for arrows
 - Rex: read keys from stdin (`tty_in`); write APC/CSI on stdout (`tty_out`)
 - Focus re-announce + min-hold for state-polling games (e.g. MAME); text input TBD (Phase 3)
 - FB tile-diff (`SDL_KITTY_FB_DIFF`, default on): when the app presents a near-full surface, 32×32 `memcmp` vs last frame invents a dirty bbox for `a=f` (skip upload if identical; full present if coverage ≥ `SDL_KITTY_FB_DIFF_COVER`, default 0.45)
-- SGR mouse (`1000/1002/1006`): motion, buttons, wheel → SDL mouse events
-- Cell→pixel mapping via `TIOCGWINSZ` cell size
+- SGR mouse (`1000/1002/1006` / `1016` when available): motion, buttons, wheel → SDL mouse events
+- Cell→pixel mapping via `TIOCGWINSZ` cell size / CSI 16 t
