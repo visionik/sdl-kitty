@@ -73,7 +73,7 @@ MAME (and similar) drain the SDL event queue then sample `SDL_GetKeyboardState`.
 
 ## Focus
 
-`CreateWindow` may emit focus before some apps register the window id. The pump re-announces focus once (`focus_announced`) so late listeners still see `INPUT_FOCUS`.
+Focus is deferred to the **first** `PumpEvents` (`focus_announced`): one `FOCUS_GAINED` after CreateWindow returns, so late listeners (e.g. MAME) still see it. `KITTY_ShowWindow` / `KITTY_HideWindow` are no-ops so SDL’s default `SetKeyboardFocus` on show/hide cannot insert a `FOCUS_LOST` (same pattern as RPI/KMSDRM). `GetWindowSurface` may `RecreateWindow` (texture-framebuffer probe); CreateWindow does not clear `focus_announced` and restores `INPUT_FOCUS` after that flag wipe so a second `FOCUS_GAINED` is not emitted.
 
 ## Phase 3 — associated text / `SDL_EVENT_TEXT_INPUT`
 
