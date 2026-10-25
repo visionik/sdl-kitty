@@ -85,6 +85,11 @@ Must run in a real terminal (stdout is a TTY):
 ./scripts/run-with-kitty-sdl.sh ./build/mouse_paint
 ./scripts/run-with-kitty-sdl.sh ./build/fireworks
 ./scripts/run-with-kitty-sdl.sh ./build/key_probe
+
+# Interactive soak menu (any Kitty-capable host); quit each demo to return:
+./scripts/kitty_soak.sh
+./scripts/kitty_soak.sh --once dirty
+./scripts/kitty_soak.sh --list
 ```
 
 Or, when linked to the built lib:

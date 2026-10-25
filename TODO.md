@@ -152,7 +152,7 @@ Run from repo root: `SDL_VIDEO_DRIVER=kitty ./build/<demo>` (debug: `SDL_KITTY_D
 4. **Log expectations** — `term=`, `transmit_probe`, `frame_edit_probe`, `mode=dirty_bw|dirty_cpu|full`, no `falling back to direct` on Kitty unless intentional.
 5. **Pass/fail is visual + log** — base64 wall = fail; blank after `dirty_bw` = fail; flash-only may be known limitation (note it).
 
-- [ ] Optional: `scripts/rex_soak.sh` wrapping the Rex checklist into one run + log dir
+- [x] Host-agnostic soak menu — `scripts/kitty_soak.sh` (per-demo menu + `--all` / `--once`; logs under `/tmp/sdl-kitty-soak/`) (2026-10-25)
 
 ---
 
