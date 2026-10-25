@@ -139,7 +139,8 @@ static SDL_Surface *load_background_png(void)
         "assets/dvd_player_iso.png",
         NULL
     };
-    char *base = (char *)SDL_GetBasePath();
+    /* SDL3: GetBasePath returns a cached const string — do not free it. */
+    const char *base = SDL_GetBasePath();
     SDL_Surface *img = NULL;
     int i;
 
@@ -151,7 +152,6 @@ static SDL_Surface *load_background_png(void)
             SDL_snprintf(path, sizeof(path), "%sexamples/assets/dvd_player_iso.png", base);
             img = SDL_LoadPNG(path);
         }
-        SDL_free(base);
     }
     for (i = 0; !img && candidates[i]; ++i) {
         img = SDL_LoadPNG(candidates[i]);

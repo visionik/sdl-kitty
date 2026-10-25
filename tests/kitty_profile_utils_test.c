@@ -160,8 +160,8 @@ static void test_load_shipped_toml(void)
     expect_true(p->prefer_direct, "loaded wezterm prefer_direct");
     expect_true(p->prefer_zlib, "loaded wezterm prefer_zlib");
     expect_true(!p->dirty_at_overlays, "loaded wezterm dirty_at off (host crash)");
-    expect_int(p->default_fb_max_w, 960, "loaded wezterm fb w");
-    expect_int(p->default_fb_max_h, 540, "loaded wezterm fb h");
+    expect_int(p->default_fb_max_w, 1280, "loaded wezterm fb w");
+    expect_int(p->default_fb_max_h, 720, "loaded wezterm fb h");
 
     SDL_setenv_unsafe("TERM_PROGRAM", "not-a-real-term", 1);
     p = KITTY_DetectTerminalProfile();

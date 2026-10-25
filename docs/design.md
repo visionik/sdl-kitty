@@ -34,10 +34,11 @@ Uses alternating image ids and deletes the previous id after a successful place.
 
 ## Input
 
-- Kitty keyboard protocol (`CSI > 11 u`, then probe `CSI ? u` → `kitty_keyboard_ok`); see `docs/keyboard.md`
+- Kitty keyboard protocol (`CSI > 27 u` = flags 1|2|8|16, then probe `CSI ? u` → `kitty_keyboard_ok`); see `docs/keyboard.md`
+- Associated text (flag 16) → `SDL_SendKeyboardText` when `SDL_StartTextInput` is active
 - WezTerm: requires `enable_kitty_keyboard = true` or warn + OS-repeat fallback for arrows
 - Rex: read keys from stdin (`tty_in`); write APC/CSI on stdout (`tty_out`)
-- Focus re-announce + min-hold for state-polling games (e.g. MAME); text input TBD (Phase 3)
+- Focus re-announce + min-hold for state-polling games (e.g. MAME)
 - FB tile-diff (`SDL_KITTY_FB_DIFF`, default on): when the app presents a near-full surface, 32×32 `memcmp` vs last frame invents a dirty bbox for `a=f` (skip upload if identical; full present if coverage ≥ `SDL_KITTY_FB_DIFF_COVER`, default 0.45)
 - SGR mouse (`1000/1002/1006` / `1016` when available): motion, buttons, wheel → SDL mouse events
 - Cell→pixel mapping via `TIOCGWINSZ` cell size / CSI 16 t

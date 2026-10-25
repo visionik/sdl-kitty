@@ -116,7 +116,8 @@ static SDL_Surface *load_lake_png(void)
         "assets/lake_night.png",
         NULL
     };
-    char *base = (char *)SDL_GetBasePath();
+    /* SDL3: GetBasePath returns a cached const string — do not free it. */
+    const char *base = SDL_GetBasePath();
     SDL_Surface *img = NULL;
     int i;
 
@@ -128,7 +129,6 @@ static SDL_Surface *load_lake_png(void)
             SDL_snprintf(path, sizeof(path), "%sexamples/assets/lake_night.png", base);
             img = SDL_LoadPNG(path);
         }
-        SDL_free(base);
     }
     for (i = 0; !img && candidates[i]; ++i) {
         img = SDL_LoadPNG(candidates[i]);
@@ -259,6 +259,7 @@ int main(int argc, char **argv)
     int force_burst = 0;
     int need_full = 1;
     int bg_w = 0, bg_h = 0;
+    int running = 1;
     Uint64 next_auto_ms = 0;
 
     (void)argc;
@@ -301,7 +302,9 @@ int main(int argc, char **argv)
     SDL_zeroa(parts);
     next_auto_ms = SDL_GetTicks() + 400;
 
-    for (;;) {
+    /* running=0 skips the next present/delay so quit is not blocked behind a
+     * large full-frame a=T (Kitty/WezTerm). Cleanup still restores the tty. */
+    while (running) {
         SDL_Event e;
         SDL_Surface *surface;
         SDL_Rect dirty;
@@ -310,11 +313,13 @@ int main(int argc, char **argv)
 
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_EVENT_QUIT) {
-                goto done;
+                running = 0;
+                break;
             }
             if (e.type == SDL_EVENT_KEY_DOWN) {
                 if (e.key.key == SDLK_Q || e.key.key == SDLK_ESCAPE) {
-                    goto done;
+                    running = 0;
+                    break;
                 }
                 if (e.key.key == SDLK_SPACE) {
                     force_burst = 1;
@@ -328,6 +333,10 @@ int main(int argc, char **argv)
                 e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
                 need_full = 1;
             }
+        }
+        if (!running) {
+            demo_log("fireworks: quit — skip present\r\n");
+            break;
         }
 
         surface = SDL_GetWindowSurface(window);
@@ -433,6 +442,28 @@ int main(int argc, char **argv)
                 demo_log("SDL_UpdateWindowSurfaceRects failed: %s\r\n", SDL_GetError());
                 break;
             }
+        }
+
+        /* Poll again after present so a quit key during a slow upload is seen
+         * before another Delay + frame. */
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_EVENT_QUIT ||
+                (e.type == SDL_EVENT_KEY_DOWN &&
+                 (e.key.key == SDLK_Q || e.key.key == SDLK_ESCAPE))) {
+                running = 0;
+                break;
+            }
+            if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_SPACE) {
+                force_burst = 1;
+            }
+            if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+                e.button.button == SDL_BUTTON_LEFT) {
+                force_burst = 1;
+            }
+        }
+        if (!running) {
+            demo_log("fireworks: quit after present — skip delay\r\n");
+            break;
         }
 
         SDL_Delay(16);

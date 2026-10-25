@@ -80,6 +80,9 @@ af_max_pixels = 163840
 # vt-parser.c: MAX_ESCAPE_CODE_LENGTH = BUF_SZ/4 = 262144. Longer APCs are ignored
 # (base64 spews as text). Payload chunk = that limit minus header/ST headroom.
 apc_chunk_bytes = 261888
+# Faster quit drain: hot path uses q=2 so few late APC OK replies.
+drain_passes = 2
+drain_quiet_us = 5000
 notes = "Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_* on multi-rect totals"
 
 # Ghostty 1.3.x stable (≤1.3.1): a=f unimplemented. Put BEFORE the tip catch-all.
@@ -120,6 +123,8 @@ match.term_program = ["WezTerm", "wezterm"]
 match.term_substring = ["wezterm"]
 # Cap FB (no SHM, no working a=f display → full a=T / zlib each changing frame).
 default_fb_max = "1280x720"
+drain_passes = 2
+drain_quiet_us = 5000
 # macOS: t=s seek/read → ENXIO until wezterm#8063 (mmap). Prefer direct.
 prefer_direct = true
 # Exp 2 soak: zlib o=z instead of raw base64.

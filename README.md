@@ -21,7 +21,7 @@ Software-framebuffer path only (`GetWindowSurface` / `UpdateWindowSurface`). No 
 | Transmit: SHM (`t=s`) / zlib (`o=z`) / direct (`t=d`) | yes (probed + profile defaults) |
 | Sparse dirty BW (`a=f`) | yes when host probe OK |
 | Tile-diff for full soft presents (e.g. MAME) | yes (`SDL_KITTY_FB_DIFF`, default on) |
-| Keyboard (CSI-u + legacy) | yes (games); text input Phase 3 still open |
+| Keyboard (CSI-u + legacy) | yes (games + text via flag 16 / `SDL_StartTextInput`) |
 | Mouse (SGR 1006 / 1016) | yes |
 | Resize (`SIGWINCH`) | yes |
 | Per-terminal TOML profiles | yes (`config/terminals.toml`) |

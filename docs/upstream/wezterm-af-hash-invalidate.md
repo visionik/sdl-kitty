@@ -1,6 +1,7 @@
 # WezTerm: invalidate image after Kitty `a=f` (frame edit)
 
-Draft upstream notes for WezTerm. Prefer filing against tip; 20240203 reproduces.
+Upstream issue: https://github.com/wezterm/wezterm/issues/8281  
+Filed 2026-10-25 against 20240203; tip source still has the same `ImageData.hash` design.
 
 ## Summary
 

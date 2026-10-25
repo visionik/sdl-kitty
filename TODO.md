@@ -14,13 +14,13 @@ Ghostty source (`~/Projects/ghostty`):
 - Enabled via `Limits.shared_memory` (`allWithTempDir` = on; `Limits.direct` = **off**)
 - Full Ghostty.app Termio sets `.allWithTempDir(...)` (SHM on)
 - Embedders (Rex/libghostty) expose `GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM`; default for screens is often direct-only unless the embedder opts in
-- Protocol: **client must not unlink before the terminal opens**; Ghostty unlinks after open. Our `TransmitShm` still always-unlinks after send (bug for Kitty.app / Ghostty.app) — probe already leaves the name on success
+- Protocol: **client must not unlink before the terminal opens**; Ghostty unlinks after open. Client `TransmitShm` / SHM probe already leave the name on success (`shm_unlink_after_send` defaults false).
 - `a=f` in Ghostty is **animation-frame** transmit (incl. SHM medium when enabled), composed into an existing image
 
 Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK. **a=f is unimplemented in 1.3.1** (returns `ERROR: unimplemented action`); real animation is tip PR #13943 (merged 2026-08-21, after 1.3.1 cut). Profile: `prefer_direct=false`, `silent_af_ok=false`, `direct_af_when_shm=false` → dirty_bw off, full a=T (works). Revisit dirty_bw on tip / next release.
 
 - [ ] Ask Rex to enable Kitty shared-memory medium (or document why it’s off)
-- [ ] Fix `TransmitShm` / probe: never `shm_unlink` on success; only on create failure / abandoned object
+- [x] `TransmitShm` / probe: never `shm_unlink` on success (terminal owns unlink; profile `shm_unlink_after_send=false`)
 - [ ] Keep Rex `prefer_direct` until host SHM is actually enabled
 - [x] Ghostty 1.3.1: diagnose a=f (unimplemented; tip #13943)
 - [x] Ghostty 1.3.1 soak: alpha, fireworks, galaga (full SHM a=T; smooth)
@@ -30,7 +30,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [x] Kitty 0.49.2 source-aligned profile + soak (dirty/alpha/fw/galaga); multi-rect af gates; APC 256KiB
 - [x] Ghostty `apc_chunk_bytes` = 65MiB (apc.zig)
 - [ ] Optional: XTVERSION probe when `TERM_PROGRAM_VERSION` unset (SSH)
-- [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
+- [x] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking) — skip present/delay on quit; shorter drain on Kitty/WezTerm (2026-10-25)
 - [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (later: kitty keyboard off, not PTY flood)
 - [x] **WezTerm: arrow keys sticky / janky under MAME** (closed 2026-10-25) — **not graphics-load / PTY flood**.
   - Root cause: WezTerm defaults **`enable_kitty_keyboard = false`**, so our `CSI > 11 u` was ignored; Xterm encoding sends **no key-ups** (only press + OS autorepeat). Client waiting for `:3` → sticky arrows; auto-up workaround → janky OS-repeat delay.
@@ -46,7 +46,7 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 
 - [ ] **`assign_image_to_cells` overflow / hang with C=1 overlays** — sdl-kitty `dirty_at` (small `a=T` + `c`/`r` stretch + CUP + `C=1`) paints briefly then either panics (`attempt to add with overflow` / `NotNan` add in `term/src/terminalstate/image.rs`) or **hangs** (~1GB RSS): PTY thread stuck in `kitty_img_place` → `assign_image_to_cells` → `Line::set_cell` while UI `paint_pass` waits on the pane mutex (spindump 2026-10-24, PID 5558). Likely `physical_rows - cursor.y` underflow / ungarded cell-delta math when placement meets the screen edge under `do_not_move_cursor`. Tip has some zero-dimension guards (#6344); 20240203 does not. Fix: saturating/clamped height under `C=1`, reject or clip placements that extend past the screen, avoid holding the mux lock across huge cell loops (or bound work). Repro: WezTerm 20240203 + `SDL_KITTY_DIRTY_AT=1` + `dirty_rects_demo`. Evidence: `/tmp/wezterm-hang.txt`, panic dialog screenshot in session.
 - [ ] **Success reply on `a=T` with `i=` only** — `kitty_img_transmit` sends `OK` only when `I=` (image number) is set; `i=`-only transmit+place is silent even at `q=0`/`Verbose`. Blocks client `SDL_KITTY_PERF_ACK` host timing (100 ms timeout/frame → ~10 fps). Cannot work around with both `i=` and `I=` (spec + WezTerm/Ghostty/Kitty → `EINVAL`). Fix: emit `Gi=<id>;OK` (respecting `q`) after successful `a=T`/`a=t` when client supplied `i=`, matching Kitty placement-ack behavior. Until then: leave PERF_ACK off on WezTerm; measure with `ms_tx`/`wire` only.
-- [ ] **a=f display invalidate** — `ImageData.hash` is creation-time only and is the GPU/dedup key (`wezterm-cell/src/image.rs`). `kitty_frame_transmit` mutates pixels + inner frame hash but leaves outer hash stale → sparse `a=f` never paints. Fix: recompute/replace `Arc<ImageData>` after edit and invalidate placements/texture cache. **Preferred** path vs dirty_at overlays once this lands.
+- [ ] **a=f display invalidate** — filed [#8281](https://github.com/wezterm/wezterm/issues/8281). `ImageData.hash` is creation-time only and is the GPU/dedup key; `kitty_frame_transmit` mutates pixels + inner hash only → sparse `a=f` never paints. Prefer waiting on upstream / follow-up PR after feedback.
 - [ ] **a=f success reply** — successful `kitty_frame_transmit` is silent; only errors call `kitty_send_response`. Emit `OK` (optionally with `r=`) so clients need not rely on `silent_af_ok`.
 - [ ] **macOS SHM `t=s`** — open PR [#8063](https://github.com/wezterm/wezterm/pull/8063) (mmap instead of seek/read). Review/land or rebase; unblocks prefer SHM.
 - [ ] After SHM + a=f invalidate: re-soak galaga (expect keys + pace to recover when not flooding PTY with base64).
@@ -60,11 +60,6 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 ### Kitty (`~/Projects/kitty`)
 
 - [ ] No blocking graphics bugs found for our path on 0.49.2 (SHM + `a=f` + APC ≤256KiB). Optional: confirm whether `a=f`+`t=s` is intentional/supported (we use direct `a=f` on SHM sessions).
-- [ ] If we chase SHM `a=f` blanks again: re-test after our client never unlinks on success (below).
-
-### sdl-kitty client
-
-- [ ] **`TransmitShm` unlink-before-open** — never `shm_unlink` on success (terminal owns unlink); only on create failure / abandoned object. Affects Kitty.app / Ghostty.app / future WezTerm SHM.
 
 ---
 
@@ -163,7 +158,7 @@ Run from repo root: `SDL_VIDEO_DRIVER=kitty ./build/<demo>` (debug: `SDL_KITTY_D
 
 ## Backlog (add below)
 
-- [ ] Keyboard Phase 3 — text input (`SDL_SendKeyboardText`, flag 16 / associated text)
+- [x] Keyboard Phase 3 — text input (`SDL_SendKeyboardText`, flag 16 / associated text) (2026-10-25)
 - [ ] WezTerm host soak (caps + `key_probe` + soft demo)
 - [ ] FOCUS_GAINED/LOST chatter at startup — tighten if it bothers apps
 - [ ] Optional: drop MAME `-background_input` once focus is proven solid without it

@@ -32,7 +32,7 @@ Omitted event-type subfield means **press**, not “no releases”. The driver m
 On enter, the driver sends:
 
 ```text
-CSI > 11 u          # flags 1|2|8 — disambiguate, event types, all keys as CSI
+CSI > 27 u          # flags 1|2|8|16 — disambiguate, event types, all keys, associated text
 CSI ? u             # probe: expect CSI ? <flags> u → kitty_keyboard_ok
 ```
 
@@ -52,7 +52,7 @@ If `CSI ? u` is unanswered, `kitty_keyboard_ok` stays false: legacy CSI arrows u
 | 2 | event types | press / repeat / release |
 | 8 | all keys as CSI | digits/letters get press+release (needed for games) |
 | 4 | alternate keys | optional later |
-| 16 | associated text | Phase 3 text input |
+| 16 | associated text | Phase 3 — codepoints in CSI-u → `SDL_SendKeyboardText` when text input is active |
 
 ## tty_in / tty_out
 
@@ -74,6 +74,14 @@ MAME (and similar) drain the SDL event queue then sample `SDL_GetKeyboardState`.
 ## Focus
 
 `CreateWindow` may emit focus before some apps register the window id. The pump re-announces focus once (`focus_announced`) so late listeners still see `INPUT_FOCUS`.
+
+## Phase 3 — associated text / `SDL_EVENT_TEXT_INPUT`
+
+With flag **16** enabled (`CSI > 27 u`), hosts that support it embed text as Unicode codepoints in the third CSI-u field (e.g. Shift+A → `CSI 97;2;65u`). On press/repeat the driver calls `SDL_SendKeyboardText` (no-op unless the app called `SDL_StartTextInput`).
+
+Legacy ASCII bytes (Kitty keyboard off) also feed text input for printable `0x20–0x7e`.
+
+Verify with `key_probe` (already calls `SDL_StartTextInput`): type letters and look for `TEXT '…'` on stderr / the green accum bar.
 
 ## WezTerm: `enable_kitty_keyboard`
 
