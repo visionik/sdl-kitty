@@ -32,7 +32,10 @@ Ghostty.app soak (1.3.1, 2026-10-24): caps direct+SHM OK; `solid_present` SHM OK
 - [ ] Optional: XTVERSION probe when `TERM_PROGRAM_VERSION` unset (SSH)
 - [ ] Fireworks abort-on-quit (Kitty + WezTerm; non-blocking)
 - [x] WezTerm soak: dirty/alpha/fw OK; galaga slow + arrows die ~1–2s (PTY flood / input)
-- [ ] **WezTerm: arrow keys stop after ~1–2s under MAME** (still open 2026-10-24) — Galaga playable briefly then left/right die while game keeps running. Suspect PTY backlog from full-frame direct/zlib `a=T` (~960×540) starving stdin / CSI-u, not a one-shot key-map bug (`key_probe` OK alone). Diagnose: client (throttle presents / smaller FB / prefer_zlib wire) vs host (a=f hash invalidate + #8063 SHM so sparse path works). Repro: WezTerm + `mame-kitty.sh galaga`. Related upstream items below.
+- [x] **WezTerm: arrow keys sticky / janky under MAME** (closed 2026-10-25) — **not graphics-load / PTY flood**.
+  - Root cause: WezTerm defaults **`enable_kitty_keyboard = false`**, so our `CSI > 11 u` was ignored; Xterm encoding sends **no key-ups** (only press + OS autorepeat). Client waiting for `:3` → sticky arrows; auto-up workaround → janky OS-repeat delay.
+  - **Fix:** `~/.config/wezterm/wezterm.lua` → `enable_kitty_keyboard = true`. Restored client `has_release=true` for legacy CSI. Soak: Galaga hold-left smooth, KEY_DEBUG shows `event=3` releases / `via=csi`.
+  - **Mitigation shipped (uncommitted):** probe `CSI ? u` → `kitty_keyboard_ok`; WezTerm warn if unanswered; legacy arrows auto-up ~400 ms; docs in `keyboard.md` / soak log / profile notes. Related upstream still: a=f hash + #8063 (separate).
 - [x] **dirty_at overlays experiment** — implemented; **hangs/panics WezTerm 20240203** (see upstream item). Profile default **off**; opt-in `SDL_KITTY_DIRTY_AT=1` only. Client mitigations below if we revive the experiment before upstream lands.
 
 ---

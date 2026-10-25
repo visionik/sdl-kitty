@@ -67,7 +67,11 @@ Version parse: leading `major[.minor[.patch]]` (skips a non-digit prefix); `-pre
 | `stub_winch_iters` | 40 | Wait for non-stub grid at init |
 | `stub_winch_delay_ms` | 25 | Delay between stub polls |
 | `stub_cols` / `stub_rows` | 80 / 24 | Stub grid size |
-| `key_hold_ms` | 80 | Legacy key min-hold |
+| `key_hold_ms` | 80 | Legacy key min-hold (arrows use ≥400 ms when Kitty keyboard probe fails) |
+
+### WezTerm keyboard
+
+WezTerm ignores `CSI > 11 u` unless `enable_kitty_keyboard = true` in `wezterm.lua`. After push, the driver queries `CSI ? u`; no reply → one `SDL_LogWarn` on WezTerm and press+OS-repeat fallback. See [keyboard.md](keyboard.md).
 | `fb_diff` | true | Tile-diff default |
 | `fb_diff_tile` | 32 | Tile size |
 | `fb_diff_cover` | 0.45 | Diff → full threshold |

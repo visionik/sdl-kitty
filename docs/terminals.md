@@ -20,14 +20,14 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | TBD | probe |
 | **Keyboard CSI-u** | OK | OK | OK | OK | TBD | probe |
 | **Prefer transmit** | **direct** | **shm** if ok | **shm** if ok | **shm** if ok | **direct** | shm if ok |
-| **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 960×540 | 1280×720 |
+| **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 1280×720 | 1280×720 |
 | **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
 | **`a=f` max coverage** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
 | **`a=f` max pixels** | 2073k | 160k | 160k | 160k | 160k | 160k |
 | **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
 | **ignore ioctl pixels** | yes | no | no | no | no | no |
 | **direct a=f when SHM** | yes | yes | no | yes | no | no |
-| **Notes** | prefer_direct+zlib; af_max_cov=0.40; coalesce=2; t=s unsupported | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off | Fallback when TERM_PROGRAM / TERM match nothing |
+| **Notes** | prefer_direct+zlib; af_max_cov=0.40; coalesce=2; t=s unsupported | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union o… | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 
@@ -81,6 +81,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | 2026-10-24 | Ghostty.app 1.3.1 | caps: direct+SHM OK; solid/dirty(`DIRTY_BW=0`)/alpha/fireworks/galaga OK; SHM full a=T smooth | **a=f unimplemented** in 1.3.1. Profile `ghostty-1.3` (version ≤1.3.1): dirty_bw off. |
 | 2026-10-24 | Ghostty Tip `1.3.2-main+22f100c63` | dirty_rects/alpha/fireworks/galaga OK; `dirty_bw=on`; sparse a=f when coverage low | Real tip from tip.files.ghostty.org (GH tip DMG was stale=1.3.1). Parser fix: `Gi=,r=1;OK`. Galaga mixes dirty_bw + full SHM. |
 | 2026-10-24 | Kitty.app 0.49.2 | dirty_rects/alpha/fireworks/galaga OK; SHM + dirty_bw; alpha no base64 spew | Source-aligned: `direct_af_when_shm`; multi-rect `af_max_*` totals; `apc_chunk_bytes=261888` (Kitty 256KiB APC max). Ghostty APC=65MiB. |
-| 2026-10-24 | WezTerm 20240203 | dirty/alpha/fw OK at 960×540; galaga playable but slow; arrows die after ~1–2s | Prefer direct (macOS SHM #8063); a=f no GPU invalidate → dirty_bw off; PTY flooded by full direct a=T. |
+| 2026-10-24 | WezTerm 20240203 | dirty/alpha/fw OK at 960×540; galaga playable but slow; arrows die after ~1–2s | Prefer direct (macOS SHM #8063); a=f no GPU invalidate → dirty_bw off. |
+| 2026-10-25 | WezTerm 20240203 | Arrow “die” was **`enable_kitty_keyboard=false`** (CSI > 11 u ignored; no PTY key-ups). With `enable_kitty_keyboard=true`, Galaga hold-left is smooth. Driver probes `CSI ? u`, warns once on WezTerm if unanswered, and falls back to ~400 ms arrow auto-up. | Not graphics/PTY load. |
 | 2026-10-23 | Kitty.app | a=q/a=f OK; shm; key_probe OK; fireworks needs a=f→SHM on big dirties | default FB was uncapped → base64 |
 | — | WezTerm | TBD | — |

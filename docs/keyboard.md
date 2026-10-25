@@ -72,13 +72,32 @@ MAME (and similar) drain the SDL event queue then sample `SDL_GetKeyboardState`.
 
 `CreateWindow` may emit focus before some apps register the window id. The pump re-announces focus once (`focus_announced`) so late listeners still see `INPUT_FOCUS`.
 
+## WezTerm: `enable_kitty_keyboard`
+
+WezTerm defaults **`enable_kitty_keyboard = false`**. Until that is true, it **ignores** our `CSI > 11 u` push and stays on Xterm encoding (key-down + OS autorepeat only; **no key-ups** on the PTY).
+
+At setup the driver probes with **`CSI ? u`**. A `CSI ? <flags> u` reply sets `kitty_keyboard_ok`. On WezTerm with no reply:
+
+- One **`SDL_LogWarn`**: set `enable_kitty_keyboard = true` in `wezterm.lua`
+- Legacy arrows use **min-hold auto-up** (~400 ms) so games stay playable without sticky keys (still less smooth than real press/release)
+
+```lua
+-- ~/.config/wezterm/wezterm.lua
+local wezterm = require 'wezterm'
+local config = wezterm.config_builder()
+config.enable_kitty_keyboard = true
+return config
+```
+
+With the flag on, WezTerm `encode_kitty` sends press/release (`\x1b[1;1A` / `\x1b[1;1:3A`) and holds feel correct.
+
 ## Debug
 
 ```sh
 export SDL_KITTY_KEY_DEBUG=1
 ```
 
-Logs `kitty key sc=… event=… via=csi|legacy` (and harness lines).
+Logs `kitty key sc=… event=… via=csi|legacy` (and harness lines). Needs `-DSDL_KITTY_RUNTIME_DEBUG=ON`.
 
 ## Phase 0 probes (run on Rex and Ghostty)
 

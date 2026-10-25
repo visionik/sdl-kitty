@@ -119,7 +119,7 @@ id = "wezterm"
 match.term_program = ["WezTerm", "wezterm"]
 match.term_substring = ["wezterm"]
 # Cap FB — stuck on full direct a=T (no SHM, no working a=f display).
-default_fb_max = "960x540"
+default_fb_max = "1280x720"
 # macOS: t=s seek/read → ENXIO until wezterm#8063 (mmap). Prefer direct.
 prefer_direct = true
 # Exp 2 soak: zlib o=z instead of raw base64.
@@ -138,7 +138,7 @@ upload_skip = true
 coalesce_gap_px = 2
 af_max_coverage = 0.40
 af_max_pixels = 163840
-notes = "WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off"
+notes = "WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union off; needs enable_kitty_keyboard=true for press/release (else CSI ? u fails and arrows use OS-repeat hold)"
 
 [[terminal]]
 id = "unknown"
