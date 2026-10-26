@@ -161,4 +161,4 @@ Run from repo root: `SDL_VIDEO_DRIVER=kitty ./build/<demo>` (debug: `SDL_KITTY_D
 - [x] Keyboard Phase 3 — text input (`SDL_SendKeyboardText`, flag 16 / associated text) (2026-10-25)
 - [ ] WezTerm host soak (caps + `key_probe` + soft demo)
 - [x] FOCUS_GAINED/LOST chatter at startup — defer focus to first PumpEvents; no-op Show/Hide; survive GetWindowSurface RecreateWindow without a second GAINED (2026-10-25)
-- [ ] Optional: drop MAME `-background_input` once focus is proven solid without it
+- [x] Drop MAME `-background_input` — sdl-kitty single FOCUS_GAINED is enough; removed from `~/Projects/mame/mame-kitty.sh` (2026-10-26)
