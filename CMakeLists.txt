@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
-project(sdl-kitty-meta C)
+project(sdl-kitty-meta C CXX)
 
 option(SDL_KITTY_BUILD_EXAMPLES "Build sdl-kitty examples" ON)
+option(SDL_KITTY_BUILD_IMGUI "Build Dear ImGui SDL3+SDL_Renderer example" ON)
 # Compile-time: present/debug stderr logs (SDL_KITTY_DEBUG env). Default OFF for perf.
 option(SDL_KITTY_RUNTIME_DEBUG "Compile kitty runtime debug logging" OFF)
 # Compile-time: wait for Gi=;OK after a=T (SDL_KITTY_PERF_ACK env). Default OFF.
@@ -69,6 +70,34 @@ if(SDL_KITTY_BUILD_EXAMPLES)
 
   add_executable(fireworks examples/fireworks.c)
   target_link_libraries(fireworks PRIVATE SDL3::SDL3)
+endif()
+
+# Dear ImGui official example: SDL3 + SDL_Renderer (software-friendly for kitty).
+# Upstream: third_party/imgui/examples/example_sdl3_sdlrenderer3
+# Launch with SDL_RENDER_DRIVER=software under the kitty video driver.
+if(SDL_KITTY_BUILD_IMGUI)
+  set(_imgui_dir "${CMAKE_SOURCE_DIR}/third_party/imgui")
+  if(EXISTS "${_imgui_dir}/imgui.cpp")
+    add_executable(imgui_sdlrenderer3
+      "${_imgui_dir}/examples/example_sdl3_sdlrenderer3/main.cpp"
+      "${_imgui_dir}/imgui.cpp"
+      "${_imgui_dir}/imgui_demo.cpp"
+      "${_imgui_dir}/imgui_draw.cpp"
+      "${_imgui_dir}/imgui_tables.cpp"
+      "${_imgui_dir}/imgui_widgets.cpp"
+      "${_imgui_dir}/backends/imgui_impl_sdl3.cpp"
+      "${_imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp"
+    )
+    target_include_directories(imgui_sdlrenderer3 PRIVATE
+      "${_imgui_dir}"
+      "${_imgui_dir}/backends"
+    )
+    target_link_libraries(imgui_sdlrenderer3 PRIVATE SDL3::SDL3)
+    # Match other demos: prefer in-tree terminals.toml when unset.
+    target_compile_definitions(imgui_sdlrenderer3 PRIVATE ${_kitty_defs})
+  else()
+    message(WARNING "SDL_KITTY_BUILD_IMGUI=ON but third_party/imgui missing; skip imgui_sdlrenderer3")
+  endif()
 endif()
 
 enable_testing()

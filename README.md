@@ -61,6 +61,7 @@ git submodule update --init --recursive
 | Option | Default | Meaning |
 |---|---|---|
 | `SDL_KITTY_BUILD_EXAMPLES` | `ON` | Build in-tree demos |
+| `SDL_KITTY_BUILD_IMGUI` | `ON` | Build Dear ImGui `imgui_sdlrenderer3` (needs `third_party/imgui`) |
 | `SDL_KITTY_RUNTIME_DEBUG` | `OFF` | Compile present/probe/key/mouse debug logs (`SDL_KITTY_DEBUG=1` at run) |
 | `SDL_KITTY_PERF_ACK` | `OFF` | Compile optional wait for `Gi=;OK` after full `a=T` (`SDL_KITTY_PERF_ACK=1`) |
 
@@ -109,8 +110,20 @@ SDL_VIDEO_DRIVER=kitty ./build/solid_present
 | `alpha_blit` | RGBA `f=32` translucent discs |
 | `atlas_sprites` | Multi-placement APC demo (not the FB driver path) |
 | `key_probe` | Physical keyboard CSI-u check |
+| `imgui_sdlrenderer3` | Official Dear ImGui SDL3 + SDL_Renderer demo (software under kitty) |
 
 Working paint snapshots: `examples/mouse_paint_fullpane/`, `examples/mouse_paint_1to1/`.
+
+### Dear ImGui under kitty
+
+Only the **SDL_Renderer** path works (`SDL_RENDER_DRIVER=software`). GPU examples (OpenGL / Metal / Vulkan / SDL_GPU / WGPU) need a real graphics context.
+
+```bash
+cmake --build build --target imgui_sdlrenderer3
+./scripts/run-imgui-kitty.sh   # stderr → /tmp/imgui-kitty.err; stdout stays on the tty
+```
+
+Upstream SDL3 examples in `third_party/imgui/examples/`: `example_sdl3_sdlrenderer3` (this build), `example_sdl3_opengl3`, `example_sdl3_metal`, `example_sdl3_vulkan`, `example_sdl3_sdlgpu3`, `example_sdl3_wgpu`, `example_sdl3_directx11`.
 
 ## DynAPI override
 

@@ -1,4 +1,5 @@
 /build/
+imgui.ini
 .DS_Store
 *.o
 *.dylib
