@@ -76,10 +76,22 @@ def fmt_bool(v: bool) -> str:
 
 
 def fmt_fb(p: dict) -> str:
-    s = p.get("default_fb_max", "1280x720")
-    if isinstance(s, str):
-        return s.replace("x", "×")
-    return str(s)
+    """Show transport-aware soft-maxes when present; else default_fb_max."""
+    fallback = p.get("default_fb_max", "1280x720")
+    shm = p.get("default_fb_max_shm") or ""
+    direct = p.get("default_fb_max_direct") or ""
+    def norm(s: str) -> str:
+        return s.replace("x", "×") if isinstance(s, str) else str(s)
+    if shm or direct:
+        parts = []
+        if shm:
+            parts.append(f"shm {norm(shm)}")
+        if direct:
+            parts.append(f"dir {norm(direct)}")
+        if not parts:
+            return norm(fallback)
+        return "; ".join(parts)
+    return norm(fallback)
 
 
 def fmt_bytes(n: int) -> str:

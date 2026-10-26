@@ -55,7 +55,12 @@ Hosts (observed: Rex) can **drop** huge multi-chunk direct RGB while still ackno
 `KITTY_ApplyFramebufferCap` (`SDL_kittygraphics.c`):
 
 - Env `SDL_KITTY_FB_MAX=W`, `WxH`, or `off` / `none` / `0`
-- If unset → host **`KITTY_TerminalProfile.default_fb_max_*`** (Rex/WezTerm/unknown **1280×720**; Kitty/Ghostty **1920×1080**; see [terminals.md](terminals.md))
+- Env `SDL_KITTY_FB_FIXED=WxH` — exact size (no aspect-fit)
+- If unset → **transport-aware** profile soft-max:
+  - SHM (`transmit_mode` SHM and `!shm_failed`) → `default_fb_max_shm` (else `default_fb_max`)
+  - direct / zlib → `default_fb_max_direct` (else `default_fb_max`)
+- Values come from host APC/storage limits (Kitty 256 KiB APC; Ghostty 65 MiB APC / 320 MB storage; Rex lib **10 MB** storage; WezTerm 100 MB image / no macOS SHM). See [terminals.md](terminals.md).
+- Re-applied after `ProbeTransmitModes` so the first display mode matches the probed transport.
 - Applies for **both** stretch and 1:1
 
 With stretch, Kitty `c`/`r` still fills the pane from the smaller texture. With 1:1, you see a smaller native rectangle.

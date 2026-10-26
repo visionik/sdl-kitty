@@ -117,6 +117,8 @@ static void test_load_shipped_toml(void)
     expect_int((int)p->af_max_pixels, 1920 * 1080, "loaded rex af pixels");
     expect_int(p->default_fb_max_w, 1280, "loaded rex fb w from defaults");
     expect_int(p->default_fb_max_h, 720, "loaded rex fb h from defaults");
+    expect_int(p->default_fb_max_direct_w, 1280, "loaded rex fb direct w");
+    expect_int(p->default_fb_max_direct_h, 720, "loaded rex fb direct h");
     expect_true(!p->shm_unlink_after_send, "shm_unlink_after_send false");
 
     SDL_setenv_unsafe("TERM_PROGRAM", "kitty", 1);
@@ -125,6 +127,10 @@ static void test_load_shipped_toml(void)
     expect_true(!p->prefer_direct, "loaded kitty prefer shm");
     expect_int(p->default_fb_max_w, 1920, "loaded kitty fb w");
     expect_int(p->default_fb_max_h, 1080, "loaded kitty fb h");
+    expect_int(p->default_fb_max_shm_w, 1920, "loaded kitty fb shm w");
+    expect_int(p->default_fb_max_shm_h, 1080, "loaded kitty fb shm h");
+    expect_int(p->default_fb_max_direct_w, 1280, "loaded kitty fb direct w");
+    expect_int(p->default_fb_max_direct_h, 720, "loaded kitty fb direct h");
     expect_float_near(p->af_max_coverage, 0.40f, "loaded kitty af coverage");
     expect_true(p->direct_af_when_shm, "loaded kitty direct_af_when_shm");
     expect_true(!p->dirty_at_overlays, "loaded kitty no dirty_at");

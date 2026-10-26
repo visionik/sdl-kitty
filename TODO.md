@@ -131,7 +131,7 @@ Run from repo root: `SDL_VIDEO_DRIVER=kitty ./build/<demo>` (debug: `SDL_KITTY_D
 
 **Goal:** Support larger FBs safely without APC/base64 floods.
 
-- [ ] **Transport-aware caps** — Soft-max by mode (SHM vs direct), not only a single global
+- [x] **Transport-aware caps** — `default_fb_max_shm` / `default_fb_max_direct` from host APC/storage limits; re-apply after probe (2026-10-26)
 - [ ] **Probe max safe `a=T` size** — Per-host ladder; cache for the session
 - [ ] **SHM failure policy** — Partially done (refuse giant direct on non-`prefer_direct` hosts); still: retry capped / zlib / hard-error UX
 - [ ] **Raise default when SHM OK** — After proven soaks

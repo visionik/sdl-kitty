@@ -20,14 +20,14 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | probe OK / display no-op (hash) | probe |
 | **Keyboard CSI-u** | OK | OK | OK | OK | needs `enable_kitty_keyboard` | probe |
 | **Prefer transmit** | **zlib** | **shm** if ok | **shm** if ok | **shm** if ok | **zlib** | shm if ok |
-| **Default FB max** | 1280×720 | 1920×1080 | 1920×1080 | 1920×1080 | 1280×720 | 1280×720 |
+| **Default FB max** | shm 1280×720; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 |
 | **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
 | **`a=f` max coverage** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
 | **`a=f` max pixels** | 2073k | 160k | 160k | 160k | 160k | 160k |
 | **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
 | **ignore ioctl pixels** | yes | no | no | no | no | no |
 | **direct a=f when SHM** | yes | yes | no | yes | no | no |
-| **Notes** | prefer_direct+zlib; af_max_cov=0.40; coalesce=2; t=s unsupported | Kitty 0.49+: SHM + a=f; prefer SHM; direct_af_when_shm; APC ≤256KiB; af_max_*… | Ghostty ≤1.3.1: SHM on; a=f unimplemented → dirty_bw off (full a=T); APC ≤65MiB | Ghostty tip: SHM + a=f; coalesce_gap_px=2 (Exp5); APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union o… | Fallback when TERM_PROGRAM / TERM match nothing |
+| **Notes** | prefer_direct+zlib; FB≤720p (lib 10MB storage); t=s unsupported | Kitty: SHM FB 1080p / direct 720p; APC ≤256KiB; af_max_* on multi-rect totals | Ghostty ≤1.3.1: SHM 1080p / direct 720p; a=f unimplemented; APC ≤65MiB | Ghostty tip: SHM 1080p / direct 720p; a=f; coalesce=2; APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union o… | Fallback when TERM_PROGRAM / TERM match nothing |
 
 *Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
 

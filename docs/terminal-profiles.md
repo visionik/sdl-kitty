@@ -25,7 +25,9 @@ Across files: first successful file replaces the table; further files in `SDL_KI
 | `force_transmit` | string | Force `direct`/`zlib`/`shm` after env (Exp 2 Ghostty A/B) |
 | `upload_skip` | bool | Skip wire when scratch FNV matches last upload (Exp 6) |
 | `coalesce_gap_px` | int | Merge dirty rects within this pixel gap before multi a=f (0=off) |
-| `default_fb_max` | `"WxH"` | Aspect-fit FB cap when `SDL_KITTY_FB_MAX` unset; empty/`0` = no default |
+| `default_fb_max` | `"WxH"` | Fallback aspect-fit FB cap when `SDL_KITTY_FB_MAX` unset; empty/`0` = no default |
+| `default_fb_max_shm` | `"WxH"` | Soft-max when transmit is SHM (`!shm_failed`); empty/`0` → `default_fb_max` |
+| `default_fb_max_direct` | `"WxH"` | Soft-max for direct/zlib (and SHM-failed); empty/`0` → `default_fb_max` |
 | `max_direct_bytes` | int | Refuse direct a=T / a=f above this raw size |
 | `af_max_coverage` | float | Skip union a=f when dirty coverage ≥ this (env: `SDL_KITTY_AF_MAX_COVERAGE`) |
 | `af_max_pixels` | int | Skip a=f when dirty px ≥ this (also per-rect multi-a=f cap) |
