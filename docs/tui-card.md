@@ -115,4 +115,8 @@ Landed in-tree (driver + `examples/tui_card`):
 
 Rex smoke (2026-10-26): chrome intact around viewport `3,3,76,19`; present `#0`
 `608x304 place=1 mode=full -> ok`; pulse `dirty_bw` updates without wiping chrome;
-`q` quits cleanly. Interactive drag-paint in the card is the remaining manual check.  
+`q` quits cleanly. Interactive drag-paint in the card is the remaining manual check.
+
+ImGui card: `./scripts/run-imgui-card.sh` draws the same chrome pattern and runs
+`imgui_sdlrenderer3` with `VIEWPORT` + `FB_FIXED` + software renderer (stderr →
+`/tmp/imgui-kitty-card.err`). Rex smoke: present `#0/#1` ok into `608x304` card.  
