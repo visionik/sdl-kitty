@@ -3,6 +3,7 @@ project(sdl-kitty-meta C CXX)
 
 option(SDL_KITTY_BUILD_EXAMPLES "Build sdl-kitty examples" ON)
 option(SDL_KITTY_BUILD_IMGUI "Build Dear ImGui SDL3+SDL_Renderer example" ON)
+option(SDL_KITTY_BUILD_NUKLEAR "Build Nuklear SDL3+SDL_Renderer demo" ON)
 # Compile-time: present/debug stderr logs (SDL_KITTY_DEBUG env). Default OFF for perf.
 option(SDL_KITTY_RUNTIME_DEBUG "Compile kitty runtime debug logging" OFF)
 # Compile-time: wait for Gi=;OK after a=T (SDL_KITTY_PERF_ACK env). Default OFF.
@@ -97,6 +98,32 @@ if(SDL_KITTY_BUILD_IMGUI)
     target_compile_definitions(imgui_sdlrenderer3 PRIVATE ${_kitty_defs})
   else()
     message(WARNING "SDL_KITTY_BUILD_IMGUI=ON but third_party/imgui missing; skip imgui_sdlrenderer3")
+  endif()
+endif()
+
+# Nuklear official demo: SDL3 + SDL_Renderer (software-friendly for kitty).
+# Upstream: third_party/Nuklear/demo/sdl3_renderer
+if(SDL_KITTY_BUILD_NUKLEAR)
+  set(_nuklear_dir "${CMAKE_SOURCE_DIR}/third_party/Nuklear")
+  if(EXISTS "${_nuklear_dir}/nuklear.h")
+    add_executable(nuklear_sdl3_renderer
+      "${_nuklear_dir}/demo/sdl3_renderer/main.c"
+    )
+    target_include_directories(nuklear_sdl3_renderer PRIVATE
+      "${_nuklear_dir}"
+      "${_nuklear_dir}/demo/sdl3_renderer"
+    )
+    # SDL_MAIN_USE_CALLBACKS — need SDL3main for the entry stub on some platforms.
+    if(TARGET SDL3::SDL3main)
+      target_link_libraries(nuklear_sdl3_renderer PRIVATE SDL3::SDL3main SDL3::SDL3)
+    else()
+      target_link_libraries(nuklear_sdl3_renderer PRIVATE SDL3::SDL3)
+    endif()
+    target_compile_definitions(nuklear_sdl3_renderer PRIVATE ${_kitty_defs})
+    # Nuklear demo is written as C89; keep warnings usable on Clang.
+    target_compile_options(nuklear_sdl3_renderer PRIVATE -Wno-unused-function)
+  else()
+    message(WARNING "SDL_KITTY_BUILD_NUKLEAR=ON but third_party/Nuklear missing; skip nuklear_sdl3_renderer")
   endif()
 endif()
 
