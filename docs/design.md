@@ -3,6 +3,9 @@
 For placement, FB capping, and mouse mapping (including Rex lessons), see
 [framebuffer-placement-and-mouse.md](framebuffer-placement-and-mouse.md).
 
+For running the FB as a fixed cell rect inside a text UI (not full-pane), see
+[tui-card.md](tui-card.md).
+
 See the session plan for the full roadmap. Short form:
 
 - **API:** SDL3 public video/renderer API

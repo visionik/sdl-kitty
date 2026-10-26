@@ -50,6 +50,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(mouse_paint examples/mouse_paint.c)
   target_link_libraries(mouse_paint PRIVATE SDL3::SDL3)
 
+  add_executable(tui_card examples/tui_card.c)
+  target_link_libraries(tui_card PRIVATE SDL3::SDL3)
+
   add_executable(dvd_bounce examples/dvd_bounce.c)
   target_link_libraries(dvd_bounce PRIVATE SDL3::SDL3)
 
