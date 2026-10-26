@@ -82,8 +82,9 @@ endif()
 if(SDL_KITTY_BUILD_IMGUI)
   set(_imgui_dir "${CMAKE_SOURCE_DIR}/third_party/imgui")
   if(EXISTS "${_imgui_dir}/imgui.cpp")
+    # Parent-owned main: Esc/Q quit for TUI card runs (upstream example has none).
     add_executable(imgui_sdlrenderer3
-      "${_imgui_dir}/examples/example_sdl3_sdlrenderer3/main.cpp"
+      "${CMAKE_SOURCE_DIR}/examples/imgui_sdlrenderer3_main.cpp"
       "${_imgui_dir}/imgui.cpp"
       "${_imgui_dir}/imgui_demo.cpp"
       "${_imgui_dir}/imgui_draw.cpp"

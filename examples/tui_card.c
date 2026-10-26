@@ -281,8 +281,7 @@ int main(int argc, char **argv)
     SDL_DestroySurface(canvas);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    /* Leave a final status on primary screen (no alt restore). */
-    fputs("\033[?25h\n", stdout);
-    fflush(stdout);
+    /* KITTY_RestoreTerminal already shows the cursor and parks it on the
+     * row below the card chrome. */
     return 0;
 }
