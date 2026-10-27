@@ -169,7 +169,7 @@ Profiles and more overrides: [docs/terminal-profiles.md](docs/terminal-profiles.
 ## Host notes (short)
 
 - **Kitty.app** — correctness oracle; prefer SHM + sparse `a=f`
-- **Ghostty tip+** — SHM + `a=f`; stable 1.3.1 needs full `a=T` (`a=f` unimplemented)
+- **Ghostty ≥1.4 / tip** — SHM + `a=f` (100% Kitty graphics in 1.4.0); ≤1.3.1 needs full `a=T`
 - **Rex** — prefer direct/zlib; SHM often unsupported by the host
 - **WezTerm** — prefer zlib; FB cap 1280×720; sparse `a=f` not display-usable until ImageData.hash invalidate; set `enable_kitty_keyboard = true` in `wezterm.lua` (driver probes `CSI ? u` and warns otherwise)
 
