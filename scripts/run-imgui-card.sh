@@ -81,8 +81,7 @@ export SDL_KITTY_FB_FIXED="${SDL_KITTY_FB_FIXED:-${FB_W}x${FB_H}}"
 export DYLD_LIBRARY_PATH="$ROOT/build/third_party/SDL${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export SDL3_DYNAMIC_API="${SDL3_DYNAMIC_API:-$ROOT/build/third_party/SDL/libSDL3.dylib}"
 
-# Title/status only — driver draws the ASCII box via KITTY_DrawViewportChrome
-# (and redraws it on WINCH so the border matches the live viewport).
+# Title/status only. Optional ASCII box: SDL_KITTY_CARD_CHROME=1.
 STATUS_ROW=$ROWS
 if (( VP_ROW + VP_H + 1 > STATUS_ROW )); then
   STATUS_ROW=$((VP_ROW + VP_H + 1))

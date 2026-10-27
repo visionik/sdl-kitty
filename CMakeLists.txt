@@ -100,6 +100,23 @@ if(SDL_KITTY_BUILD_IMGUI)
     target_link_libraries(imgui_sdlrenderer3 PRIVATE SDL3::SDL3)
     # Match other demos: prefer in-tree terminals.toml when unset.
     target_compile_definitions(imgui_sdlrenderer3 PRIVATE ${_kitty_defs})
+
+    # CLI question card: radio / checkbox pick → result file (scripts/sdl-kitty-ask.sh).
+    add_executable(sdl_kitty_ask
+      "${CMAKE_SOURCE_DIR}/examples/sdl_kitty_ask.cpp"
+      "${_imgui_dir}/imgui.cpp"
+      "${_imgui_dir}/imgui_draw.cpp"
+      "${_imgui_dir}/imgui_tables.cpp"
+      "${_imgui_dir}/imgui_widgets.cpp"
+      "${_imgui_dir}/backends/imgui_impl_sdl3.cpp"
+      "${_imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp"
+    )
+    target_include_directories(sdl_kitty_ask PRIVATE
+      "${_imgui_dir}"
+      "${_imgui_dir}/backends"
+    )
+    target_link_libraries(sdl_kitty_ask PRIVATE SDL3::SDL3)
+    target_compile_definitions(sdl_kitty_ask PRIVATE ${_kitty_defs})
   else()
     message(WARNING "SDL_KITTY_BUILD_IMGUI=ON but third_party/imgui missing; skip imgui_sdlrenderer3")
   endif()

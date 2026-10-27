@@ -124,6 +124,8 @@ Only the **SDL_Renderer** path works (`SDL_RENDER_DRIVER=software`). GPU backend
 cmake --build build --target imgui_sdlrenderer3 nuklear_sdl3_renderer
 ./scripts/run-imgui-kitty.sh     # stderr → /tmp/imgui-kitty.err
 ./scripts/run-imgui-card.sh      # ImGui in TUI card (VIEWPORT; docs/tui-card.md)
+./scripts/sdl-kitty-ask.sh [--multi] "Question?" "A" "B" ...
+                             # radio/checkbox card → exit status = choice
 ./scripts/run-nuklear-kitty.sh   # stderr → /tmp/nuklear-kitty.err
 ```
 

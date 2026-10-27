@@ -120,4 +120,38 @@ Rex smoke (2026-10-26): chrome intact around viewport `3,3,76,19`; present `#0`
 ImGui card: `./scripts/run-imgui-card.sh` (driver draws ASCII chrome; Esc/Q quit
 in `examples/imgui_sdlrenderer3_main.cpp`). Rex: defer present until viewport
 fits; on stub→real WINCH redraw chrome and full a=T so the image stays in the
-box and mouse clip matches. Cursor parks on the row below the card on exit.  
+box and mouse clip matches. Cursor parks on the row below the card on exit.
+
+## Ask CLI
+
+`scripts/sdl-kitty-ask.sh` / `build/sdl_kitty_ask` — positional question card.
+The choice is the **exit status** (stdout stays the Kitty graphics tty):
+
+```bash
+./scripts/sdl-kitty-ask.sh "Pick one?" "Alpha" "Beta" "Gamma"
+case $? in
+  0) echo Alpha ;;
+  1) echo Beta ;;
+  2) echo Gamma ;;
+  255) echo cancelled ;;
+esac
+
+./scripts/sdl-kitty-ask.sh --multi "Pick any?" "A" "B" "C"
+# $? is a bitmask: bit i set ⇒ option i selected; 255 = cancel
+```
+
+2–8 options. Default single-select (radio) → exit `0..n-1`. `--multi`
+(checkboxes) → bitmask. OK/Enter needs ≥1 selected; Esc/Cancel → `255`.
+Usage errors → `2`.
+
+## Leave images on exit
+
+`SDL_KITTY_LEAVE_IMAGES=1` skips Kitty `a=d,d=A` in `DestroyWindow` /
+`RestoreTerminal`. The last placed card (or full-pane) image stays on the tty
+after the process exits; mouse/keyboard modes are still torn down and the
+cursor still parks under the card. Default is off (delete on quit).
+
+## ASCII card chrome
+
+`SDL_KITTY_CARD_CHROME=1` draws a `+---+` box one cell outside `VIEWPORT`
+(and redraws it on WINCH). Default is **off** — the image alone marks the card.  
