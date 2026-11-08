@@ -19,8 +19,13 @@ set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/SDL)
 
-# In-tree demos: fall back to repo config/terminals.toml when SDL_KITTY_PROFILES unset.
-set(_kitty_defs "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\"")
+# Both files are compiled into the driver (scripts/update_facts.py). In-tree builds
+# also read the repo's copies at run time, so edits show without regenerating:
+# config/terminals.toml (facts; SDL_KITTY_FACTS overrides) and
+# config/sdl-kitty.toml (tuning; SDL_KITTY_PROFILES overrides).
+set(_kitty_defs
+  "KITTY_DEFAULT_FACTS_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\""
+  "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/sdl-kitty.toml\"")
 if(SDL_KITTY_RUNTIME_DEBUG)
   list(APPEND _kitty_defs "SDL_KITTY_RUNTIME_DEBUG=1")
 endif()

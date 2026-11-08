@@ -15,7 +15,7 @@ fi
 export SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}"
 # Kitty has no GPU context; force the software renderer onto the window FB.
 export SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}"
-export SDL_KITTY_PROFILES="${SDL_KITTY_PROFILES:-$ROOT/config/terminals.toml}"
+export SDL_KITTY_PROFILES="${SDL_KITTY_PROFILES:-$ROOT/config/sdl-kitty.toml}"
 export DYLD_LIBRARY_PATH="$ROOT/build/third_party/SDL${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export SDL3_DYNAMIC_API="${SDL3_DYNAMIC_API:-$ROOT/build/third_party/SDL/libSDL3.dylib}"
 

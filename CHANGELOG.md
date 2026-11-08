@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Terminal profiles split into **facts** and **tuning**:
+  - `config/terminals.toml` is now the shared facts file from
+    [terminal-facts](https://github.com/visionik/terminal-facts) (schema 1, shared with pixcell),
+    vendored unchanged by `scripts/update_facts.py`.
+  - `config/sdl-kitty.toml` holds sdl-kitty's own tuning as `[defaults]` and `[terminal.<id>]`.
+  - Facts decide `silent_af_ok`, `ignore_ioctl_pixels`, `apc_chunk_bytes`, `prefer_direct`
+    (no SHM) and skipping the `a=f` probe; the WezTerm keyboard warning comes from
+    `keyboard.kitty_protocol_config`.
+  - Both files are compiled in (`SDL_kittyprofile_data.h`); the per-terminal C tables are gone.
+  - `SDL_KITTY_PROFILES` now names tuning files; `SDL_KITTY_FACTS` names a facts file.
+- The terminal is recognised by **XTVERSION** right after raw mode (`SDL_KITTY_XTVERSION=0`
+  to skip), so WezTerm started from a Rex pane is no longer treated as Rex, and Ghostty's
+  version comes from the terminal itself.
+- Version and OS rows stack on their terminal (`ghostty` then `ghostty-1.3`; `wezterm` then
+  `wezterm-macos`) instead of first-match; profile `name` is the terminal's id (`ghostty`)
+  and `rows` lists what applied.
+
 ### Added
 
 - Compile-time gates for runtime debug and PERF_ACK waits (default **OFF** for release perf):
