@@ -24,7 +24,7 @@ Software-framebuffer path only (`GetWindowSurface` / `UpdateWindowSurface`). No 
 | Keyboard (CSI-u + legacy) | yes (games + text via flag 16 / `SDL_StartTextInput`) |
 | Mouse (SGR 1006 / 1016) | yes |
 | Resize (`SIGWINCH`) | yes |
-| Per-terminal TOML profiles | yes (`config/terminals.toml`) |
+| Per-terminal facts + tuning (TOML, compiled in) | yes (`config/terminals.toml` from [terminal-facts](https://github.com/visionik/terminal-facts), `config/sdl-kitty.toml`) |
 | OpenGL / GPU | no |
 
 See [CHANGELOG.md](CHANGELOG.md) for recent changes.
@@ -33,7 +33,7 @@ See [CHANGELOG.md](CHANGELOG.md) for recent changes.
 
 - [Framebuffer placement, mouse, and Rex lessons](docs/framebuffer-placement-and-mouse.md)
 - [Terminal features & fixes](docs/terminals.md) — per-host matrix
-- [Terminal profile TOML](docs/terminal-profiles.md) — `config/terminals.toml`
+- [Terminal profiles](docs/terminal-profiles.md) — facts (`config/terminals.toml`, shared) and tuning (`config/sdl-kitty.toml`)
 - [Capability optimizations](docs/optimizations.md) — dirty rects, probes, transmit
 - [Keyboard](docs/keyboard.md)
 - [Design notes](docs/design.md)
@@ -75,7 +75,7 @@ cmake -S . -B build -DSDL_KITTY_RUNTIME_DEBUG=ON -DSDL_KITTY_PERF_ACK=ON
 ### Tests
 
 ```bash
-ctest --test-dir build -R 'kitty_(probe|rect|profile)_utils_test' --output-on-failure
+ctest --test-dir build -R kitty --output-on-failure
 ```
 
 ## Run examples
@@ -152,7 +152,8 @@ On macOS, `DYLD_LIBRARY_PATH=…/build/third_party/SDL` also works for apps that
 | `SDL_KITTY_TRANSMIT=shm\|zlib\|direct` | Force transmit medium |
 | `SDL_KITTY_FB_MAX` / `FB_FIXED` | Cap or fix framebuffer size |
 | `SDL_KITTY_DIRTY_BW=0\|1` | Force sparse `a=f` off/on |
-| `SDL_KITTY_PROFILES` | Path to `terminals.toml` |
+| `SDL_KITTY_PROFILES` | Tuning file(s) in `sdl-kitty.toml` format, `:`-separated |
+| `SDL_KITTY_FACTS` | A `terminals.toml` instead of the compiled-in facts |
 | `SDL_KITTY_DEBUG=1` | Logs (needs `-DSDL_KITTY_RUNTIME_DEBUG=ON`) |
 
 Profiles and more overrides: [docs/terminal-profiles.md](docs/terminal-profiles.md).
@@ -160,7 +161,8 @@ Profiles and more overrides: [docs/terminal-profiles.md](docs/terminal-profiles.
 ## Layout
 
 - `third_party/SDL` — SDL3 fork with `src/video/kitty/` (branch `sdl-kitty-v0`)
-- `config/terminals.toml` — per-host defaults
+- `config/terminals.toml` — facts about terminals, vendored from [terminal-facts](https://github.com/visionik/terminal-facts) (`scripts/update_facts.py`)
+- `config/sdl-kitty.toml` — sdl-kitty's tuning, keyed by the same terminal ids
 - `examples/` — smoke demos
 - `tests/` — unit tests for kitty helpers
 - `scripts/` — runners and probes

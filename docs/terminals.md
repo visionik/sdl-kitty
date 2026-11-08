@@ -1,44 +1,56 @@
 # Terminal features & fixes
 
-Per-host capability matrix for the Kitty graphics / keyboard stack.
+Per-terminal matrix for the Kitty graphics / keyboard stack.
 
 **Sources of truth:**
 
-- **Canonical table:** [`config/terminals.toml`](../config/terminals.toml) — see [`terminal-profiles.md`](terminal-profiles.md)
-- **Runtime:** TOML loader (`SDL_kittyprofile_load.c` + tomlc17) with compiled builtins as fallback; `SDL_KITTY_PROFILES` / pref / base / in-tree default path
+- **Facts:** [`config/terminals.toml`](../config/terminals.toml), vendored unchanged from
+  [terminal-facts](https://github.com/visionik/terminal-facts) (shared with pixcell). What a
+  terminal really does, with the evidence. New findings go there, then
+  `python3 scripts/update_facts.py`.
+- **Tuning:** [`config/sdl-kitty.toml`](../config/sdl-kitty.toml), sdl-kitty's own choices keyed
+  by the same ids. See [`terminal-profiles.md`](terminal-profiles.md).
+- **Runtime:** both compiled into the driver (`SDL_kittyprofile_data.h`); files found at run time
+  replace the facts or overlay the tuning.
 
 Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 
 <!-- BEGIN GENERATED MATRIX -->
 
-|   | Rex | Kitty.app | Ghostty ≤1.3.1 | Ghostty tip+ | WezTerm | Unknown |
-|---|---|---|---|---|---|---|
-| **Detect** | `TERM_PROGRAM=rex` | `kitty` or empty + `TERM=xterm-kitty` | `ghostty` ≤`1.3.1` | `ghostty` | `WezTerm` / `wezterm` | else |
-| **Graphics `a=q` direct** | OK (often) | OK | OK | OK | OK | probe |
-| **SHM `t=s`** | `a=T` works when forced; `a=q` often silent/fail → still prefer direct | OK | OK | OK | fail (macOS #8063) | probe |
-| **zlib `o=z`** | OK (prefer) | varies | varies | varies | OK (prefer) | probe |
-| **`a=f` frame-edit** | OK / silent≈OK | OK | unimplemented 1.3.1 | OK (tip #13943) | probe OK / display no-op (hash) | probe |
-| **Keyboard CSI-u** | OK | OK | OK | OK | needs `enable_kitty_keyboard` | probe |
-| **Prefer transmit** | **zlib** | **shm** if ok | **shm** if ok | **shm** if ok | **zlib** | shm if ok |
-| **Default FB max** | shm 1280×720; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 |
-| **Refuse direct above** | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB | ~8 MiB |
-| **`a=f` max coverage** | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 | 0.40 |
-| **`a=f` max pixels** | 2073k | 160k | 160k | 160k | 160k | 160k |
-| **Keys on stdin** | yes (required) | yes | yes | yes | yes | yes |
-| **ignore ioctl pixels** | yes | no | no | no | no | no |
-| **direct a=f when SHM** | yes | yes | no | yes | no | no |
-| **Notes** | prefer_direct+zlib; FB≤720p (lib 10MB storage); t=s unsupported | Kitty: SHM FB 1080p / direct 720p; APC ≤256KiB; af_max_* on multi-rect totals | Ghostty ≤1.3.1: SHM 1080p / direct 720p; a=f unimplemented; APC ≤65MiB | Ghostty ≥1.4 / tip: SHM 1080p / direct 720p; a=f; coalesce=2; APC ≤65MiB | WezTerm: prefer_zlib; upload_skip; coalesce=2; no SHM; a=f off; dirty_union o… | Fallback when TERM_PROGRAM / TERM match nothing |
+| | Kitty | Ghostty | Ghostty ≤ 1.3.1 | Rex | WezTerm | WezTerm (macOS) | iTerm2 | Unknown |
+|---|---|---|---|---|---|---|---|---|
+| **Recognised by** | XTVERSION `kitty`; `KITTY_WINDOW_ID`; `TERM_PROGRAM=kitty` | XTVERSION `ghostty`; `GHOSTTY_RESOURCES_DIR`; `TERM_PROGRAM=ghostty` | as Ghostty | XTVERSION `rex`; `REX_SESSION`; `TERM_PROGRAM=rex` | XTVERSION `wezterm`; `WEZTERM_EXECUTABLE`; `TERM_PROGRAM=wezterm` | as WezTerm | XTVERSION `iterm2`; `ITERM_SESSION_ID`; `TERM_PROGRAM=iTerm.app` | no row matches |
+| ***Facts* (terminals.toml)** |  |  |  |  |  |  |  |  |
+| **`a=f` shows** | yes | yes | **no** | yes | **no** | **no** | **no** | ? |
+| **`a=f` replies** | ? | ? | ? | **no** | ? | ? | ? | ? |
+| **SHM `t=s`** | yes | yes | yes | **no** | ? | **no** | ? | ? |
+| **Longest escape code** | 256 KiB | 65 MiB | 65 MiB | ? | ? | ? | ? | ? |
+| **Image storage** | 320 MiB | 320 MB | 320 MB | 10 MB | ? | ? | ? | ? |
+| **ioctl pixel sizes** | ? | ? | ? | **no** | ? | ? | ? | ? |
+| **Kitty keyboard needs** | ? | ? | ? | ? | `enable_kitty_keyboard = true (wezterm.lua)` | `enable_kitty_keyboard = true (wezterm.lua)` | ? | ? |
+| ***sdl-kitty* (sdl-kitty.toml + facts)** |  |  |  |  |  |  |  |  |
+| **Prefer transmit** | **shm** if ok | **shm** if ok | **shm** if ok | **zlib** | **zlib** | **zlib** | **shm** if ok | **shm** if ok |
+| **Default FB max** | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1920×1080; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 | shm 1280×720; dir 1280×720 |
+| **`a=f` probe** | needs OK | needs OK | skipped | silent = ok | skipped | skipped | skipped | silent = ok |
+| **`a=f` max coverage / pixels** | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 2,073,600 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 |
+| **Direct `a=f` when SHM** | yes | yes | no | yes | no | no | no | no |
+| **Coalesce gap** | 0 px | 2 px | 2 px | 2 px | 2 px | 2 px | 0 px | 0 px |
+| **APC chunk** | 261,888 B | 68,157,184 B | 68,157,184 B | 2 MiB | 2 MiB | 2 MiB | 2 MiB | 2 MiB |
+| **Ignore ioctl pixels** | no | no | no | yes | no | no | no | no |
 
-*Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*
+`?` unknown: the driver probes, or uses its tuning. Evidence for each fact is in [`config/terminals.toml`](../config/terminals.toml).
+*Generated by `scripts/terminals_toml_to_md.py`; don't edit by hand.*
 
 <!-- END GENERATED MATRIX -->
 
 ## Policy
 
 1. **Probe** what the host answers (`a=q`, SHM, `a=f`).
-2. **Profile** supplies defaults / quirks for that host family.
-3. **Never** apply one host’s emergency fix as a silent global (document in this table + profile).
-4. Soak results update this table; then tighten profile numbers.
+2. **Facts** (terminals.toml) record what a terminal does; **tuning** (sdl-kitty.toml) is what
+   sdl-kitty chooses given them.
+3. **Never** apply one host’s emergency fix as a silent global (record it as a fact or a
+   per-terminal tuning key).
+4. Soak results become facts in terminal-facts, with their evidence; then tighten tuning.
 
 ## Env overrides (all hosts)
 
@@ -49,7 +61,9 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | `SDL_KITTY_FB_FIXED=WxH` | Exact FB |
 | `SDL_KITTY_DIRTY_BW=0\|1` | Force sparse `a=f` off/on |
 | `SDL_KITTY_DEBUG=1` | Init / present logs (stderr + SDL_Log) |
-| `SDL_KITTY_PROFILES` | Path or `:`-list of TOML profile files |
+| `SDL_KITTY_PROFILES` | Path or `:`-list of tuning files (`sdl-kitty.toml` format) |
+| `SDL_KITTY_FACTS` | A `terminals.toml` to use instead of the compiled-in facts |
+| `SDL_KITTY_XTVERSION=0` | Don't ask XTVERSION; recognise the terminal from the environment only |
 
 ## Soak log
 

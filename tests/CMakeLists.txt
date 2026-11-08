@@ -39,6 +39,15 @@ target_include_directories(kitty_profile_utils_test PRIVATE
 target_link_libraries(kitty_profile_utils_test PRIVATE SDL3::SDL3)
 
 add_test(NAME kitty_profile_utils_test COMMAND kitty_profile_utils_test)
-# Resolve config/terminals.toml relative to the repo root regardless of cwd.
+# Resolve config/*.toml relative to the repo root regardless of cwd.
 set_tests_properties(kitty_profile_utils_test PROPERTIES
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+# The compiled-in copy of config/*.toml, and the matrix in docs/terminals.md, must match them.
+find_package(Python3 3.11 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME kitty_profile_data_fresh
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/update_facts.py" --check)
+  add_test(NAME kitty_terminals_md_fresh
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/terminals_toml_to_md.py" --check)
+endif()

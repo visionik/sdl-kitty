@@ -1,272 +1,192 @@
 #!/usr/bin/env python3
-"""Regenerate the capability matrix in docs/terminals.md from config/terminals.toml.
+"""Regenerate the matrix in docs/terminals.md from config/terminals.toml and config/sdl-kitty.toml.
 
-Preserves everything outside the GENERATED MATRIX markers.
-Requires Python 3.11+ (tomllib) or pip install tomli.
+    python3 scripts/terminals_toml_to_md.py          # rewrite the matrix
+    python3 scripts/terminals_toml_to_md.py --check  # fail if docs/terminals.md is stale
+
+One column per terminals.toml row, resolved as the driver does it (SDL_kittyprofile_load.c):
+[defaults], then [terminal.<id>] for the row and each row it extends, then the facts that
+decide a setting. Preserves everything outside the GENERATED MATRIX markers. Python 3.11+.
 """
+
 from __future__ import annotations
 
 import argparse
-import re
 import sys
+import tomllib
 from pathlib import Path
 
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib  # type: ignore
-    except ImportError:
-        print("Need tomllib (3.11+) or tomli", file=sys.stderr)
-        sys.exit(1)
-
+ROOT = Path(__file__).resolve().parents[1]
 BEGIN = "<!-- BEGIN GENERATED MATRIX -->"
 END = "<!-- END GENERATED MATRIX -->"
-
-# Narrative soak / probe rows that are not in TOML (kept beside profile numbers).
-PROBE_ROWS = [
-    # columns: rex, kitty, ghostty-1.3, ghostty (tip+), wezterm, unknown
-    ("Graphics `a=q` direct", "OK (often)", "OK", "OK", "OK", "OK", "probe"),
-    ("SHM `t=s`", "`a=T` works when forced; `a=q` often silent/fail → still prefer direct", "OK", "OK", "OK", "fail (macOS #8063)", "probe"),
-    ("zlib `o=z`", "OK (prefer)", "varies", "varies", "varies", "OK (prefer)", "probe"),
-    ("`a=f` frame-edit", "OK / silent≈OK", "OK", "unimplemented 1.3.1", "OK (tip #13943)", "probe OK / display no-op (hash)", "probe"),
-    ("Keyboard CSI-u", "OK", "OK", "OK", "OK", "needs `enable_kitty_keyboard`", "probe"),
-]
-
-HOST_ORDER = ["rex", "kitty", "ghostty-1.3", "ghostty", "wezterm", "unknown"]
-HOST_LABEL = {
-    "rex": "Rex",
-    "kitty": "Kitty.app",
-    "ghostty-1.3": "Ghostty ≤1.3.1",
-    "ghostty": "Ghostty tip+",
-    "wezterm": "WezTerm",
-    "unknown": "Unknown",
-}
+OS_NAMES = {"macos": "macOS", "linux": "Linux", "windows": "Windows", "bsd": "BSD"}
+APC_HEADROOM = 256
 
 
-def resolve(defaults: dict, term: dict) -> dict:
-    out = dict(defaults)
-    out.update({k: v for k, v in term.items() if k != "match"})
+def flatten(table: dict, prefix: str = "") -> dict:
+    out = {}
+    for key, value in table.items():
+        if not prefix and key in ("id", "name", "extends", "match", "evidence", "notes"):
+            continue
+        if isinstance(value, dict):
+            out.update(flatten(value, f"{prefix}{key}."))
+        else:
+            out[prefix + key] = value
     return out
 
 
-def detect_cell(term: dict) -> str:
-    m = term.get("match") or {}
+def chain(rows: dict, row_id: str) -> list[dict]:
+    """The row and the rows it extends, base first."""
+    out = []
+    row = rows.get(row_id)
+    while row is not None:
+        out.append(row)
+        row = rows.get(row.get("extends"))
+    return out[::-1]
+
+
+def resolve(rows: dict, tuning: dict, row_id: str | None) -> tuple[dict, dict]:
+    """(facts, settings) as the driver resolves them for this row's conditions."""
+    settings = dict(tuning.get("defaults", {}))
+    facts: dict = {}
+    for row in chain(rows, row_id) if row_id else []:
+        facts.update(flatten(row))
+        settings.update(tuning.get("terminal", {}).get(row["id"], {}))
+    if row_id is None:
+        settings.update(tuning.get("terminal", {}).get("unknown", {}))
+    if "kitty.frame_edit_reply" in facts:
+        settings["silent_af_ok"] = not facts["kitty.frame_edit_reply"]
+    if "window.ioctl_pixels" in facts:
+        settings["ignore_ioctl_pixels"] = not facts["window.ioctl_pixels"]
+    if facts.get("kitty.max_escape_bytes", 0) > APC_HEADROOM:
+        settings["apc_chunk_bytes"] = facts["kitty.max_escape_bytes"] - APC_HEADROOM
+    if facts.get("kitty.shm") is False:
+        settings["prefer_direct"] = True
+    settings["skip_af_probe"] = facts.get("kitty.frame_edit") is False
+    if settings["skip_af_probe"]:
+        settings["direct_af_when_shm"] = False
+    return facts, settings
+
+
+def heading(rows: dict, row: dict | None) -> str:
+    if row is None:
+        return "Unknown"
+    if "extends" not in row:
+        return row["name"]
+    base = chain(rows, row["id"])[0]
+    match = row.get("match", {})
     parts = []
-    tp = m.get("term_program") or []
-    if tp:
-        if len(tp) == 1:
-            parts.append(f"`TERM_PROGRAM={tp[0]}`" if term.get("id") == "rex" else "`" + "` / `".join(tp) + "`")
-        else:
-            parts.append(" / ".join(f"`{x}`" for x in tp))
-    empty = m.get("term_when_program_empty") or []
-    if empty:
-        parts.append("empty + " + " / ".join(f"`TERM={x}`" for x in empty))
-    if term.get("id") == "unknown":
-        return "else"
-    if not parts:
-        return "—"
-    if term.get("id") == "kitty" and empty:
-        return "`kitty` or empty + `TERM=xterm-kitty`"
-    return " / ".join(parts) if term.get("id") != "rex" else parts[0]
+    if "version_min" in match:
+        parts.append(f"≥ {match['version_min']}")
+    if "version_max" in match:
+        parts.append(f"≤ {match['version_max']}")
+    if "os" in match:
+        parts.append("(" + ", ".join(OS_NAMES[each] for each in match["os"]) + ")")
+    return f"{base['name']} {' '.join(parts)}"
 
 
-def fmt_bool(v: bool) -> str:
-    return "yes" if v else "no"
+def recognised(rows: dict, row: dict | None) -> str:
+    if row is None:
+        return "no row matches"
+    if "extends" in row:
+        return f"as {chain(rows, row['id'])[0]['name']}"
+    match = row.get("match", {})
+    parts = [f"XTVERSION `{name}`" for name in match.get("xtversion", [])]
+    parts += [f"`{name}`" for name in match.get("env", [])]
+    parts += [f"`TERM_PROGRAM={name}`" for name in match.get("term_program", [])]
+    return "; ".join(parts)
 
 
-def fmt_fb(p: dict) -> str:
-    """Show transport-aware soft-maxes when present; else default_fb_max."""
-    fallback = p.get("default_fb_max", "1280x720")
-    shm = p.get("default_fb_max_shm") or ""
-    direct = p.get("default_fb_max_direct") or ""
-    def norm(s: str) -> str:
-        return s.replace("x", "×") if isinstance(s, str) else str(s)
-    if shm or direct:
-        parts = []
-        if shm:
-            parts.append(f"shm {norm(shm)}")
-        if direct:
-            parts.append(f"dir {norm(direct)}")
-        if not parts:
-            return norm(fallback)
-        return "; ".join(parts)
-    return norm(fallback)
+def fact(value) -> str:
+    if value is None:
+        return "?"
+    if value is True:
+        return "yes"
+    if value is False:
+        return "**no**"
+    return size(value) if isinstance(value, int) else f"`{value}`"
 
 
-def fmt_bytes(n: int) -> str:
-    if abs(n - 1920 * 1080 * 4) < 64:
-        return "~8 MiB"
-    if n >= 1024 * 1024 and n % (1024 * 1024) == 0:
-        return f"~{n // (1024 * 1024)} MiB"
-    if n >= 1024 * 1024:
-        return f"~{n / (1024 * 1024):.1f} MiB"
-    if n >= 1024 and n % 1024 == 0:
-        return f"~{n // 1024} KiB"
-    return str(n)
+def size(n: int) -> str:
+    for unit, scale in (("MiB", 1048576), ("MB", 1000000), ("KiB", 1024), ("kB", 1000)):
+        if n % scale == 0:
+            return f"{n // scale} {unit}"
+    return f"{n:,} B"
 
 
-def fmt_pixels(n: int) -> str:
-    if n == 1280 * 720:
-        return f"**~{n // 1000}k (1280×720)**" if n > 200000 else f"**~{n} (1280×720)**"
-    if n == 160 * 1024:
-        return "160k"
-    if n >= 1000:
-        return f"{n // 1000}k"
-    return str(n)
+def fb(s: dict) -> str:
+    def norm(text: str) -> str:
+        return (text or s.get("default_fb_max", "")).replace("x", "×")
+
+    return f"shm {norm(s.get('default_fb_max_shm'))}; dir {norm(s.get('default_fb_max_direct'))}"
 
 
-def prefer_cell(p: dict) -> str:
-    # Matches ProbeTransmitModes: prefer_zlib wins over raw direct when set.
-    if p.get("prefer_zlib"):
-        return "**zlib**"
-    if p.get("prefer_direct"):
-        return "**direct**"
-    tid = p.get("id") or ""
-    if tid == "kitty" or tid == "ghostty" or tid.startswith("ghostty-"):
-        return "**shm** if ok"
-    return "shm if ok"
+def transmit(s: dict) -> str:
+    if s.get("prefer_direct"):
+        return "**zlib**" if s.get("prefer_zlib") else "**direct**"
+    return "**shm** if ok"
 
 
-def detect_version_suffix(term: dict) -> str:
-    m = term.get("match") or {}
-    parts = []
-    vmin = m.get("term_program_version_min")
-    vmax = m.get("term_program_version_max")
-    if vmin:
-        parts.append(f"≥`{vmin}`")
-    if vmax:
-        parts.append(f"≤`{vmax}`")
-    return (" " + " ".join(parts)) if parts else ""
+def yes_no(value) -> str:
+    return "yes" if value else "no"
 
 
-def notes_cell(p: dict) -> str:
-    n = (p.get("notes") or "").strip()
-    if not n:
-        if p.get("id") == "unknown":
-            return "Conservative"
-        return "—"
-    # Shorten for table
-    if len(n) > 80:
-        n = n[:77] + "…"
-    return n
+def build_matrix(facts_data: dict, tuning: dict) -> str:
+    rows = {row["id"]: row for row in facts_data.get("terminal", [])}
+    columns: list[dict | None] = [*rows.values(), None]
+    resolved = [resolve(rows, tuning, row["id"] if row else None) for row in columns]
 
+    lines = [BEGIN, ""]
+    lines.append("| | " + " | ".join(heading(rows, row) for row in columns) + " |")
+    lines.append("|---|" + "---|" * len(columns))
 
-def build_matrix(data: dict) -> str:
-    defaults = data.get("defaults") or {}
-    terminals = data.get("terminal") or []
-    by_id = {}
-    for t in terminals:
-        tid = t.get("id")
-        if not tid:
-            continue
-        p = resolve(defaults, t)
-        p["id"] = tid
-        by_id[tid] = (t, p)
+    def row(label: str, cells) -> None:
+        lines.append(f"| **{label}** | " + " | ".join(cells) + " |")
 
-    cols = []
-    for hid in HOST_ORDER:
-        if hid in by_id:
-            cols.append(by_id[hid])
-        else:
-            cols.append(({"id": hid, "match": {}}, resolve(defaults, {"id": hid})))
-
-    headers = [" "] + [HOST_LABEL.get(c[0].get("id", ""), c[0].get("id", "?")) for c in cols]
-    lines = [
-        BEGIN,
-        "",
-        "| " + " | ".join(headers) + " |",
-        "|" + "|".join(["---"] * len(headers)) + "|",
-    ]
-
-    def row(label: str, cells: list[str]) -> None:
-        lines.append("| " + " | ".join([f"**{label}**"] + cells) + " |")
-
-    row("Detect", [detect_cell(c[0]) + detect_version_suffix(c[0]) for c in cols])
-
-    for label, *probe in PROBE_ROWS:
-        # probe tuple aligned to HOST_ORDER
-        row(label, list(probe))
-
-    row("Prefer transmit", [prefer_cell(c[1]) for c in cols])
-    row("Default FB max", [fmt_fb(c[1]) for c in cols])
-    row("Refuse direct above", [fmt_bytes(int(c[1].get("max_direct_bytes", 0))) for c in cols])
-
-    cov_cells = []
-    for _, p in cols:
-        cov = float(p.get("af_max_coverage", 0.4))
-        s = f"{cov:.2f}"
-        if cov >= 0.9:
-            s = f"**{s}**"
-        cov_cells.append(s)
-    row("`a=f` max coverage", cov_cells)
-
-    px_cells = []
-    for _, p in cols:
-        n = int(p.get("af_max_pixels", 160 * 1024))
-        s = fmt_pixels(n)
-        if float(p.get("af_max_coverage", 0)) >= 0.9 and "**" not in s:
-            s = f"**{s}**"
-        px_cells.append(s)
-    row("`a=f` max pixels", px_cells)
-
-    row(
-        "Keys on stdin",
-        [
-            "yes (required)"
-            if c[1].get("id") == "rex" and c[1].get("keys_on_stdin")
-            else ("yes" if c[1].get("keys_on_stdin") else "no")
-            for c in cols
-        ],
-    )
-    row(
-        "ignore ioctl pixels",
-        [fmt_bool(bool(c[1].get("ignore_ioctl_pixels"))) for c in cols],
-    )
-    row(
-        "direct a=f when SHM",
-        [fmt_bool(bool(c[1].get("direct_af_when_shm"))) for c in cols],
-    )
-    row("Notes", [notes_cell(c[1]) for c in cols])
-
+    row("Recognised by", [recognised(rows, each) for each in columns])
+    row("*Facts* (terminals.toml)", ["" for _ in columns])
+    for key, label in (
+        ("kitty.frame_edit", "`a=f` shows"),
+        ("kitty.frame_edit_reply", "`a=f` replies"),
+        ("kitty.shm", "SHM `t=s`"),
+        ("kitty.max_escape_bytes", "Longest escape code"),
+        ("kitty.storage_bytes", "Image storage"),
+        ("window.ioctl_pixels", "ioctl pixel sizes"),
+        ("keyboard.kitty_protocol_config", "Kitty keyboard needs"),
+    ):
+        row(label, [fact(f.get(key)) for f, _ in resolved])
+    row("*sdl-kitty* (sdl-kitty.toml + facts)", ["" for _ in columns])
+    row("Prefer transmit", [transmit(s) for _, s in resolved])
+    row("Default FB max", [fb(s) for _, s in resolved])
+    row("`a=f` probe", ["skipped" if s["skip_af_probe"] else ("silent = ok" if s.get("silent_af_ok") else "needs OK")
+                        for _, s in resolved])
+    row("`a=f` max coverage / pixels",
+        [f"{float(s.get('af_max_coverage', 0.4)):.2f} / {int(s.get('af_max_pixels', 0)):,}" for _, s in resolved])
+    row("Direct `a=f` when SHM", [yes_no(s.get("direct_af_when_shm")) for _, s in resolved])
+    row("Coalesce gap", [f"{s.get('coalesce_gap_px', 0)} px" for _, s in resolved])
+    row("APC chunk", [size(int(s.get("apc_chunk_bytes", 0))) for _, s in resolved])
+    row("Ignore ioctl pixels", [yes_no(s.get("ignore_ioctl_pixels")) for _, s in resolved])
     lines.append("")
-    lines.append(f"*Generated from `config/terminals.toml` by `scripts/terminals_toml_to_md.py`. Do not edit by hand — re-run the script.*")
+    lines.append("`?` unknown: the driver probes, or uses its tuning. Evidence for each fact is in "
+                 "[`config/terminals.toml`](../config/terminals.toml).")
+    lines.append("*Generated by `scripts/terminals_toml_to_md.py`; don't edit by hand.*")
     lines.append("")
     lines.append(END)
     return "\n".join(lines)
 
 
-def patch_markdown(md: str, matrix: str) -> str:
-    if BEGIN in md and END in md:
-        pattern = re.compile(
-            re.escape(BEGIN) + r".*?" + re.escape(END),
-            re.DOTALL,
-        )
-        return pattern.sub(matrix, md)
-    # First run: replace from "Detection order:" (or first table) through just before ## Policy
-    policy = md.find("\n## Policy")
-    if policy < 0:
-        return md.rstrip() + "\n\n" + matrix + "\n"
-    start = md.find("\nDetection order:")
-    if start < 0:
-        start = md.find("\n| ")
-    if start < 0:
-        start = policy
-    return md[:start] + "\n" + matrix + "\n" + md[policy:]
-
-
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    root = Path(__file__).resolve().parents[1]
-    ap.add_argument("--toml", type=Path, default=root / "config" / "terminals.toml")
-    ap.add_argument("--md", type=Path, default=root / "docs" / "terminals.md")
-    ap.add_argument("--check", action="store_true", help="exit 1 if md would change")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--facts", type=Path, default=ROOT / "config" / "terminals.toml")
+    ap.add_argument("--tuning", type=Path, default=ROOT / "config" / "sdl-kitty.toml")
+    ap.add_argument("--md", type=Path, default=ROOT / "docs" / "terminals.md")
+    ap.add_argument("--check", action="store_true", help="exit 1 if the md would change")
     args = ap.parse_args()
 
-    data = tomllib.loads(args.toml.read_text(encoding="utf-8"))
-    matrix = build_matrix(data)
-    old = args.md.read_text(encoding="utf-8") if args.md.exists() else ""
-    new = patch_markdown(old, matrix)
+    matrix = build_matrix(tomllib.loads(args.facts.read_text()), tomllib.loads(args.tuning.read_text()))
+    old = args.md.read_text(encoding="utf-8")
+    start, end = old.index(BEGIN), old.index(END) + len(END)
+    new = old[:start] + matrix + old[end:]
     if args.check:
         if new != old:
             print(f"{args.md} is stale; run scripts/terminals_toml_to_md.py", file=sys.stderr)

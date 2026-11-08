@@ -7,8 +7,8 @@ cd "$ROOT/build"
 PAINT="./mouse_paint"
 MODE="${1:-1}"
 export SDL_VIDEO_DRIVER=kitty
-if [ -z "${SDL_KITTY_PROFILES:-}" ] && [ -f "$ROOT/config/terminals.toml" ]; then
-  export SDL_KITTY_PROFILES="$ROOT/config/terminals.toml"
+if [ -z "${SDL_KITTY_PROFILES:-}" ] && [ -f "$ROOT/config/sdl-kitty.toml" ]; then
+  export SDL_KITTY_PROFILES="$ROOT/config/sdl-kitty.toml"
 fi
 export SDL_KITTY_TRANSMIT="${SDL_KITTY_TRANSMIT:-direct}"
 export SDL_KITTY_PLACE_CELLS="$MODE"

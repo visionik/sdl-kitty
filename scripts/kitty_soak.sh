@@ -49,7 +49,7 @@ detect_host() {
     WezTerm|wezterm) echo "wezterm"; return ;;
     kitty) echo "kitty"; return ;;
     ghostty|Ghostty)
-      # Rough split: ≤1.3.1 vs tip (same idea as terminals.toml first-match).
+      # Rough split: ≤1.3.1 vs tip (the ghostty-1.3 row in terminals.toml).
       if [[ -n "$ver" ]] && printf '%s\n' "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
         && [[ "$(printf '%s\n' "$ver" | awk -F. '{print ($1*10000+$2*100+$3)}')" -le 10301 ]]; then
         echo "ghostty-1.3"
@@ -266,7 +266,7 @@ done
 need_build
 HOST="$(detect_host)"
 LOG_DIR="/tmp/sdl-kitty-soak/${HOST}-${STAMP}"
-export SDL_KITTY_PROFILES="${SDL_KITTY_PROFILES:-${ROOT}/config/terminals.toml}"
+export SDL_KITTY_PROFILES="${SDL_KITTY_PROFILES:-${ROOT}/config/sdl-kitty.toml}"
 
 case "$MODE" in
   list)

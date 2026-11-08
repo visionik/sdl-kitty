@@ -206,6 +206,27 @@ static void test_select_modes(void)
                (int)KITTY_TRANSMIT_DIRECT, "shm fail -> direct");
 }
 
+static void test_xtversion_reply(void)
+{
+    char out[64];
+    const char ghostty[] = "\033P>|ghostty 1.3.1\033\\\033[?62;22c";
+    const char bel[] = "noise\033P>|kitty(0.50.0)\a";
+    const char partial[] = "\033P>|WezTerm 2024";
+    const char da1_only[] = "\033[?1;2c";
+
+    expect_true(KITTY_ParseXtversionReply(ghostty, strlen(ghostty), out, sizeof(out)), "xtversion ST");
+    expect_true(strcmp(out, "ghostty 1.3.1") == 0, "xtversion text");
+    expect_true(KITTY_ReplyHasDA1(ghostty, strlen(ghostty)), "DA1 after xtversion");
+    expect_true(KITTY_ParseXtversionReply(bel, strlen(bel), out, sizeof(out)), "xtversion BEL");
+    expect_true(strcmp(out, "kitty(0.50.0)") == 0, "xtversion BEL text");
+    expect_true(!KITTY_ParseXtversionReply(partial, strlen(partial), out, sizeof(out)), "unfinished answer");
+    expect_true(!KITTY_ParseXtversionReply(da1_only, strlen(da1_only), out, sizeof(out)), "no xtversion");
+    expect_true(KITTY_ReplyHasDA1(da1_only, strlen(da1_only)), "DA1 alone");
+    expect_true(!KITTY_ReplyHasDA1(partial, strlen(partial)), "no DA1");
+    expect_true(KITTY_ParseXtversionReply(ghostty, strlen(ghostty), out, 5) && strcmp(out, "ghos") == 0,
+                "truncated to cap");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -231,6 +252,7 @@ int main(int argc, char **argv)
     test_select_coalesce_gap();
     test_select_pingpong();
     test_select_modes();
+    test_xtversion_reply();
     SDL_Quit();
     if (failures) {
         fprintf(stderr, "%d failure(s)\n", failures);
