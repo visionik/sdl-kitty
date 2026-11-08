@@ -22,8 +22,8 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **Recognised by** | XTVERSION `kitty`; `KITTY_WINDOW_ID`; `TERM_PROGRAM=kitty` | XTVERSION `ghostty`; `GHOSTTY_RESOURCES_DIR`; `TERM_PROGRAM=ghostty` | as Ghostty | XTVERSION `rex`; `REX_SESSION`; `TERM_PROGRAM=rex` | XTVERSION `wezterm`; `WEZTERM_EXECUTABLE`; `TERM_PROGRAM=wezterm` | as WezTerm | XTVERSION `iterm2`; `ITERM_SESSION_ID`; `TERM_PROGRAM=iTerm.app` | no row matches |
 | ***Facts* (terminals.toml)** |  |  |  |  |  |  |  |  |
 | **`a=f` shows** | yes | yes | **no** | yes | **no** | **no** | **no** | ? |
-| **`a=f` replies** | ? | ? | ? | **no** | ? | ? | ? | ? |
-| **SHM `t=s`** | yes | yes | yes | **no** | ? | **no** | ? | ? |
+| **`a=f` replies** | yes | ? | ? | **no** | ? | ? | ? | ? |
+| **SHM `t=s`** | yes | yes | yes | **no** | ? | **no** | yes | ? |
 | **Longest escape code** | 256 KiB | 65 MiB | 65 MiB | ? | ? | ? | ? | ? |
 | **Image storage** | 320 MiB | 320 MB | 320 MB | 10 MB | ? | ? | ? | ? |
 | **ioctl pixel sizes** | ? | ? | ? | **no** | ? | ? | ? | ? |
