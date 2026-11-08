@@ -24,9 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Version and OS rows stack on their terminal (`ghostty` then `ghostty-1.3`; `wezterm` then
   `wezterm-macos`) instead of first-match; profile `name` is the terminal's id (`ghostty`)
   and `rows` lists what applied.
+- WezTerm `default_fb_max` **960×540 → 1280×720**
+- Docs: IFDEF debug/PERF_ACK; WezTerm `enable_kitty_keyboard`; keyboard probe/fallback; capability matrix WezTerm columns filled from soaks
 
 ### Added
 
+- iTerm2 is recognised, from the shared facts: SHM (checked by eye on 3.7.7, `dvd_sprite`), and no
+  sparse `a=f`, so that probe is skipped. Settings are otherwise `[defaults]`.
+- Fact: Kitty answers `a=f` (`kitty.frame_edit_reply`), so its probe needs an OK.
 - Compile-time gates for runtime debug and PERF_ACK waits (default **OFF** for release perf):
   - `-DSDL_KITTY_RUNTIME_DEBUG=ON` + `SDL_KITTY_DEBUG=1` for present/probe/init/key/mouse logs
   - `-DSDL_KITTY_PERF_ACK=ON` + `SDL_KITTY_PERF_ACK=1` for optional `Gi=;OK` wait after full `a=T`
@@ -36,11 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - WezTerm with no reply: one `SDL_LogWarn` + legacy arrow auto-up (~400 ms)
   - With reply: wait for real `:3` press/release
 - `LICENSE.txt` (zlib, same terms as SDL 3) and this changelog
-
-### Changed
-
-- WezTerm `default_fb_max` **960×540 → 1280×720**
-- Docs: IFDEF debug/PERF_ACK; WezTerm `enable_kitty_keyboard`; keyboard probe/fallback; capability matrix WezTerm columns filled from soaks
 
 ### Fixed
 

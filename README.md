@@ -2,7 +2,7 @@
 
 SDL3 video driver that presents through the [Kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
-Run real SDL3 apps inside **Kitty**, **Ghostty**, **WezTerm**, or **Rex**:
+Run real SDL3 apps inside **Kitty**, **Ghostty**, **WezTerm**, **iTerm2**, or **Rex**:
 
 ```bash
 export SDL_VIDEO_DRIVER=kitty
@@ -154,6 +154,7 @@ On macOS, `DYLD_LIBRARY_PATH=…/build/third_party/SDL` also works for apps that
 | `SDL_KITTY_DIRTY_BW=0\|1` | Force sparse `a=f` off/on |
 | `SDL_KITTY_PROFILES` | Tuning file(s) in `sdl-kitty.toml` format, `:`-separated |
 | `SDL_KITTY_FACTS` | A `terminals.toml` instead of the compiled-in facts |
+| `SDL_KITTY_XTVERSION=0` | Recognise the terminal from the environment only |
 | `SDL_KITTY_DEBUG=1` | Logs (needs `-DSDL_KITTY_RUNTIME_DEBUG=ON`) |
 
 Profiles and more overrides: [docs/terminal-profiles.md](docs/terminal-profiles.md).
@@ -174,6 +175,7 @@ Profiles and more overrides: [docs/terminal-profiles.md](docs/terminal-profiles.
 - **Ghostty ≥1.4 / tip** — SHM + `a=f` (100% Kitty graphics in 1.4.0); ≤1.3.1 needs full `a=T`
 - **Rex** — prefer direct/zlib; SHM often unsupported by the host
 - **WezTerm** — prefer zlib; FB cap 1280×720; sparse `a=f` not display-usable until ImageData.hash invalidate; set `enable_kitty_keyboard = true` in `wezterm.lua` (driver probes `CSI ? u` and warns otherwise)
+- **iTerm2** — SHM with full frames; no sparse `a=f`, so that probe is skipped (checked on 3.7.7)
 
 ## License
 
