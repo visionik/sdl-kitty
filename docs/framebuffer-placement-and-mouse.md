@@ -127,6 +127,30 @@ export SDL_KITTY_PLACE_CELLS=0
 
 **Expect:** capped rectangle (may not fill pane); crosshair aligned **on the rectangle**.
 
+### Stretch with the aspect kept (letterbox)
+
+```bash
+export SDL_KITTY_PLACE_CELLS=1
+export SDL_KITTY_PLACE_ASPECT=1         # largest centred cell box with the FB's aspect
+export SDL_KITTY_FB_FIXED=1920x1080     # optional: an exact FB size
+export SDL_KITTY_RESIZE_SETTLE_MS=2000  # optional: refit once a divider drag stops
+```
+
+**Expect:** the FB fills the pane in one direction and is centred in the other, with blank cells
+around it, at its own aspect ratio. It refits on every resize (after the settle time, if set).
+
+How: after each FB cap, `KITTY_FitAspectCells` computes the box from the grid, the cell size and
+the FB size, and sets the live viewport, so placement (CUP + `c`/`r`), mouse clipping and mapping
+into the FB, and re-placing on resize all use the card viewport's code. An explicit
+`SDL_KITTY_VIEWPORT` wins. The alternate screen stays on.
+
+`SDL_KITTY_RESIZE_SETTLE_MS` applies to any resize, with or without the aspect option: each
+SIGWINCH restarts the clock, and the resize is handled at the first event pump after the size has
+been still that long. Until then the old placement stays. The default, 0, handles each resize at
+the next pump. An app blocked in `SDL_WaitEvent` with no timeout only notices at its next event.
+
+First user: the vroom SDL viewer (a remote screen at 1920×1080 in a Rex pane, 2 s settle).
+
 ### A/B helper
 
 ```bash
