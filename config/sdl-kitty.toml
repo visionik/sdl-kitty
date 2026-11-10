@@ -17,6 +17,7 @@
 #   kitty.max_escape_bytes          -> apc_chunk_bytes (minus 256 for the header)
 #   kitty.shm = false               -> prefer_direct = true
 #   kitty.frame_edit = false        -> skip the a=f probe; direct_af_when_shm = false
+#   kitty.frame_edit_zlib           -> af_zlib
 #
 # Compiled into the driver by scripts/update_facts.py; files found at run time
 # (SDL_KITTY_PROFILES, the pref and base paths) overlay it.
@@ -30,6 +31,8 @@ default_fb_max_direct = "1280x720"
 max_direct_bytes = 8294400          # 1920*1080*4
 af_max_coverage = 0.40
 af_max_pixels = 163840              # 160*1024
+# Compress a=f edits (o=z). Used when kitty.frame_edit_zlib is unknown.
+af_zlib = false
 keys_on_stdin = true
 # Used when kitty.frame_edit_reply is unknown: a strict a=f probe needs OK.
 silent_af_ok = false
@@ -60,7 +63,7 @@ shm_unlink_after_send = false
 [terminal.rex]
 # Facts: no t=s (so prefer_direct), silent a=f replies, untrustworthy ioctl pixels.
 # Exp 2 Rex soak (2026-10-24): o=z full a=T OK (solid/dirty/alpha); big wire win vs raw.
-# a=f stays t=d either way; zlib only helps full a=T (init/resize/fallback).
+# a=f stays t=d either way. Full a=T takes zlib; a=f with o=z: kitty.frame_edit_zlib.
 prefer_zlib = true
 # kitty.storage_bytes = 10 MB; 1080p RGBA is ~8.3 MB, so cap at 720p.
 default_fb_max = "1280x720"
