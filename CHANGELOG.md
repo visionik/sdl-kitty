@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Punctuation keys (`- = [ ] \ ; ' , . / `` ` `` and their shifted forms) reach the app as key events; they were dropped as unknown, so chords such as ctrl-] never arrived.
 - WezTerm MAME arrows “dying”: root cause was **`enable_kitty_keyboard=false`** (Xterm encoding, no PTY key-ups), not PTY/graphics load. Set `enable_kitty_keyboard = true` in `wezterm.lua` for smooth holds.
 
 ## [0.1.0] — 2026-10-24
