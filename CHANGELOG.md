@@ -29,6 +29,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `SDL_KITTY_PLACE_ASPECT=1`: with `place_cells` and no `SDL_KITTY_VIEWPORT`, the FB is placed in the
+  largest centred cell box with its aspect ratio (letterbox) instead of stretched over the pane, and
+  refitted on every resize. Uses the card viewport for placement and mouse mapping.
+- `SDL_KITTY_RESIZE_SETTLE_MS=N`: handle a resize only once no SIGWINCH has arrived for N ms, so
+  dragging a divider refits once. Default 0 (each resize at the next pump).
+- `KITTY_FitAspectCells` in `SDL_kittyrect.c`, with a unit test.
+
 - iTerm2 is recognised, from the shared facts: SHM (checked by eye on 3.7.7, `dvd_sprite`), and no
   sparse `a=f`, so that probe is skipped. Settings are otherwise `[defaults]`.
 - Fact: Kitty answers `a=f` (`kitty.frame_edit_reply`), so its probe needs an OK.

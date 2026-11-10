@@ -361,6 +361,34 @@ static void test_place_cells_touches_edge(void)
     expect_true(KITTY_PlaceCellsTouchesEdge(1, 1, 0, 1, 10, 10), "zero place -> edge");
 }
 
+static void test_fit_aspect_cells(void)
+{
+    int col = 0, row = 0, c = 0, r = 0;
+
+    /* 16:9 FB in a 100×50 grid of 10×20 cells (1000×1000 px): full width,
+     * 1000/(16/9)=562.5 px → 28 rows, centred. */
+    expect_true(KITTY_FitAspectCells(100, 50, 10, 20, 1920, 1080, &col, &row, &c, &r), "fit wide");
+    expect_int(c, 100, "wide: all columns");
+    expect_int(r, 28, "wide: rows by aspect");
+    expect_int(col, 1, "wide: col origin");
+    expect_int(row, 12, "wide: centred rows");
+
+    /* Same FB in a 200×20 grid (2000×400 px): full height, 400*16/9=711 px → 71 cols. */
+    expect_true(KITTY_FitAspectCells(200, 20, 10, 20, 1920, 1080, &col, &row, &c, &r), "fit tall");
+    expect_int(r, 20, "tall: all rows");
+    expect_int(c, 71, "tall: cols by aspect");
+    expect_int(col, 65, "tall: centred cols");
+    expect_int(row, 1, "tall: row origin");
+
+    /* Exact fit fills the grid. */
+    expect_true(KITTY_FitAspectCells(16, 9, 10, 10, 160, 90, &col, &row, &c, &r), "exact");
+    expect_int(c * 100 + r, 1609, "exact: whole grid");
+    expect_int(col * 100 + row, 101, "exact: origin");
+
+    expect_true(!KITTY_FitAspectCells(0, 9, 10, 10, 160, 90, &col, &row, &c, &r), "bad grid");
+    expect_true(!KITTY_FitAspectCells(16, 9, 10, 10, 0, 90, &col, &row, &c, &r), "bad fb");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -389,6 +417,7 @@ int main(int argc, char **argv)
     test_fnv1a64();
     test_coalesce_rects();
     test_place_cells_touches_edge();
+    test_fit_aspect_cells();
 
     SDL_Quit();
     if (failures) {

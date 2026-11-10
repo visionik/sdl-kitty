@@ -151,6 +151,8 @@ On macOS, `DYLD_LIBRARY_PATH=…/build/third_party/SDL` also works for apps that
 | `SDL_VIDEO_DRIVER=kitty` | Select this driver |
 | `SDL_KITTY_TRANSMIT=shm\|zlib\|direct` | Force transmit medium |
 | `SDL_KITTY_FB_MAX` / `FB_FIXED` | Cap or fix framebuffer size |
+| `SDL_KITTY_PLACE_ASPECT=1` | Letterbox the stretched FB in the pane, keeping its aspect ratio |
+| `SDL_KITTY_RESIZE_SETTLE_MS=N` | Refit after a resize only once the size has been still for N ms |
 | `SDL_KITTY_DIRTY_BW=0\|1` | Force sparse `a=f` off/on |
 | `SDL_KITTY_PROFILES` | Tuning file(s) in `sdl-kitty.toml` format, `:`-separated |
 | `SDL_KITTY_FACTS` | A `terminals.toml` instead of the compiled-in facts |
