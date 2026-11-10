@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dragging a divider refits once. Default 0 (each resize at the next pump).
 - `KITTY_FitAspectCells` in `SDL_kittyrect.c`, with a unit test.
 - Compressed `a=f` edits (`o=z`): tuning `af_zlib`, decided by the new fact `kitty.frame_edit_zlib`
-  where it's known (no terminal has it yet), `SDL_KITTY_AF_ZLIB=0`/`1` to force. Apps can read the
+  where it's known (Rex so far, checked by eye with `scripts/check_af_zlib.py`), `SDL_KITTY_AF_ZLIB=0`/`1` to force. Apps can read the
   choice from the boolean window property `SDL.window.kitty.af_zlib`, to size their updates: a
   desktop's changed rectangles shrink several times over with zlib.
 

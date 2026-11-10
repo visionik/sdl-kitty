@@ -318,10 +318,11 @@ static void test_frame_edit_zlib(void)
 {
     const char *path;
 
-    /* Unknown everywhere yet: edits go raw, as [defaults] says. */
+    /* Rex draws them (compiled-in facts); Kitty is unknown, so raw, as [defaults] says. */
     fresh();
     SDL_setenv_unsafe("TERM_PROGRAM", "rex", 1);
-    expect_true(!KITTY_DetectTerminalProfile()->af_zlib, "rex: unknown, so raw edits");
+    expect_true(KITTY_DetectTerminalProfile()->af_zlib, "rex: kitty.frame_edit_zlib = true");
+    expect_true(!KITTY_IdentifyTerminalProfile("kitty(0.50.0)", "macos")->af_zlib, "kitty: unknown, so raw");
 
     /* The fact decides, over the tuning. */
     path = write_temp("zlib.toml",
