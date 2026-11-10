@@ -35,6 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `SDL_KITTY_RESIZE_SETTLE_MS=N`: handle a resize only once no SIGWINCH has arrived for N ms, so
   dragging a divider refits once. Default 0 (each resize at the next pump).
 - `KITTY_FitAspectCells` in `SDL_kittyrect.c`, with a unit test.
+- Compressed `a=f` edits (`o=z`): tuning `af_zlib`, decided by the new fact `kitty.frame_edit_zlib`
+  where it's known (no terminal has it yet), `SDL_KITTY_AF_ZLIB=0`/`1` to force. Apps can read the
+  choice from the boolean window property `SDL.window.kitty.af_zlib`, to size their updates: a
+  desktop's changed rectangles shrink several times over with zlib.
 
 - iTerm2 is recognised, from the shared facts: SHM (checked by eye on 3.7.7, `dvd_sprite`), and no
   sparse `a=f`, so that probe is skipped. Settings are otherwise `[defaults]`.

@@ -314,6 +314,28 @@ static void test_facts_files(void)
     remove(path);
 }
 
+static void test_frame_edit_zlib(void)
+{
+    const char *path;
+
+    /* Unknown everywhere yet: edits go raw, as [defaults] says. */
+    fresh();
+    SDL_setenv_unsafe("TERM_PROGRAM", "rex", 1);
+    expect_true(!KITTY_DetectTerminalProfile()->af_zlib, "rex: unknown, so raw edits");
+
+    /* The fact decides, over the tuning. */
+    path = write_temp("zlib.toml",
+                      "schema = 1\n"
+                      "[[terminal]]\nid = \"foo\"\nname = \"Foo\"\nmatch.xtversion = [\"foo\"]\n"
+                      "kitty.frame_edit_zlib = true\n"
+                      "[[terminal]]\nid = \"foo-old\"\nextends = \"foo\"\nmatch.version_max = \"1.9\"\n"
+                      "kitty.frame_edit_zlib = false\n");
+    expect_true(KITTY_LoadTerminalFacts(path), "facts with frame_edit_zlib");
+    expect_true(KITTY_IdentifyTerminalProfile("foo 2.0", "macos")->af_zlib, "frame_edit_zlib = true");
+    expect_true(!KITTY_IdentifyTerminalProfile("foo 1.2", "macos")->af_zlib, "frame_edit_zlib = false");
+    remove(path);
+}
+
 static void test_shipped_files(void)
 {
     /* ctest runs from the repo root: the vendored files load as overlays too. */
@@ -336,6 +358,7 @@ int main(void)
     test_unknown_and_other_terminals();
     test_tuning_overlay();
     test_facts_files();
+    test_frame_edit_zlib();
     test_shipped_files();
     if (failures) {
         fprintf(stderr, "%d failure(s)\n", failures);
