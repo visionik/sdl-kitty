@@ -8,6 +8,7 @@ A gray 320x160 image, then four in-place edits of its root frame (r=1), as sdl-k
   B  raw a=f (control)            green   at (110,10) 80x60
   C  zlib a=f, many chunks        red noise at (210,10) 100x140
   D  zlib a=f over A              yellow  at (50,40)  40x40, its bottom 10 px below A
+  E  raw a=f, one chunk (control)  cyan    at (120,100) 30x30
 Errors come back (q=1: OK replies suppressed, errors kept) and are printed under the picture.
 """
 import base64, os, random, select, sys, termios, time, tty, zlib
@@ -50,6 +51,7 @@ try:
     edit("C", 210, 10, 100, 140, noise, True)
     time.sleep(0.2)
     edit("D", 50, 40, 40, 40, solid(40, 40, (255, 220, 0)), True)
+    edit("E", 120, 100, 30, 30, solid(30, 30, (0, 220, 220)), False)
     replies = b""
     end = time.time() + 2
     while time.time() < end:
@@ -60,7 +62,7 @@ finally:
     termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 out = "\x1b[18;1H"
-out += "A blue (zlib) | B green (raw) | C red noise (zlib, %d chunks) | D yellow over A, 10 px past its bottom (zlib)\r\n" % chunks_sent["C"]
+out += "A blue (zlib) | B green (raw) | C red noise (zlib, %d chunks) | D yellow over A, 10 px past its bottom (zlib) | E small cyan under B (raw, 1 chunk)\r\n" % chunks_sent["C"]
 out += "chunks: %r\r\n" % chunks_sent
 out += "replies: %r\r\n" % replies
 out += "AFZLIB_TEST_DONE\r\n"

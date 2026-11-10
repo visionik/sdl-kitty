@@ -318,11 +318,15 @@ static void test_frame_edit_zlib(void)
 {
     const char *path;
 
-    /* Rex draws them (compiled-in facts); Kitty is unknown, so raw, as [defaults] says. */
+    /* Rex, Kitty and Ghostty 1.4 draw them (compiled-in facts); Ghostty 1.3.1 has no a=f at all. */
     fresh();
     SDL_setenv_unsafe("TERM_PROGRAM", "rex", 1);
     expect_true(KITTY_DetectTerminalProfile()->af_zlib, "rex: kitty.frame_edit_zlib = true");
-    expect_true(!KITTY_IdentifyTerminalProfile("kitty(0.50.0)", "macos")->af_zlib, "kitty: unknown, so raw");
+    expect_true(KITTY_IdentifyTerminalProfile("kitty(0.50.0)", "macos")->af_zlib, "kitty: kitty.frame_edit_zlib = true");
+    expect_true(KITTY_IdentifyTerminalProfile("ghostty 1.4.0", "macos")->af_zlib, "ghostty 1.4: true");
+    expect_true(!KITTY_IdentifyTerminalProfile("ghostty 1.3.1", "macos")->af_zlib, "ghostty 1.3.1: false");
+    expect_true(!KITTY_IdentifyTerminalProfile("WezTerm 20240203-110809-5046fc22", "macos")->af_zlib,
+                "wezterm: unknown, so raw, as [defaults] says");
 
     /* The fact decides, over the tuning. */
     path = write_temp("zlib.toml",
