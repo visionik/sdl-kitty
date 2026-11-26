@@ -24,10 +24,17 @@ fi
 MULTI=0
 FORWARD=()
 POSITIONAL=0
+SKIP_NEXT=0
 for a in "$@"; do
+  if (( SKIP_NEXT == 1 )); then
+    FORWARD+=("$a")
+    SKIP_NEXT=0
+    continue
+  fi
   case "$a" in
     --multi|-m) MULTI=1; FORWARD+=("$a") ;;
     --help|-h) FORWARD+=("$a") ;;
+    --font-size) FORWARD+=("$a"); SKIP_NEXT=1 ;;
     --out)
       echo "sdl-kitty-ask: choice is the exit status; --out removed" >&2
       exit 2
@@ -86,10 +93,12 @@ if (( VP_ROW + VP_H - 1 > ROWS )) && (( ROWS > VP_ROW + 2 )); then
   VP_H=$((ROWS - VP_ROW - 1))
 fi
 
-FB_W=$((VP_W * 10))
-FB_H=$((VP_H * 18))
-if (( FB_W < 400 )); then FB_W=400; fi
-if (( FB_H < 220 )); then FB_H=220; fi
+FB_W=$((VP_W * 16))
+FB_H=$((VP_H * 32))
+if (( FB_W < 640 )); then FB_W=640; fi
+if (( FB_H < 420 )); then FB_H=420; fi
+if (( FB_W > 1600 )); then FB_W=1600; fi
+if (( FB_H > 960 )); then FB_H=960; fi
 
 export SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}"
 export SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}"

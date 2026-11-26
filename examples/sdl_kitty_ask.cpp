@@ -20,6 +20,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
+#include "roboto_medium_compressed.h"
 
 #include <SDL3/SDL.h>
 
@@ -47,16 +48,18 @@ struct AskConfig {
     std::vector<std::string> options;
     std::vector<AskTab> tabs;
     std::string out_path;
+    float font_size = 0.0f; /* 0 = auto from framebuffer height */
     bool multi = false;
 };
 
 static void usage(const char *argv0)
 {
     std::fprintf(stderr,
-                 "Usage: %s [--multi|-m] [--out FILE] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
+                 "Usage: %s [--multi|-m] [--out FILE] [--font-size PX] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
                  "  With --out FILE: up to %d options across any number of --tab groups;\n"
                  "    writes 0-based indices (one per line) to FILE, exits 0 (OK) or %d (cancel).\n"
                  "  Without --out: single-select 2–%d (exit 0..n-1), --multi 2–%d (bitmask 0..127).\n"
+                 "  Env: SDL_KITTY_ASK_FONT_SIZE (px), SDL_KITTY_ASK_FONT (/path/to/font.ttf).\n"
                  "  Cancel / Esc: %d\n",
                  argv0, kMaxFileOptions, kExitCancel,
                  kMaxExitSingleOptions, kMaxExitMultiOptions, kExitCancel);
@@ -77,6 +80,12 @@ static bool parse_args(int argc, char **argv, AskConfig *cfg)
                 return false;
             }
             cfg->out_path = argv[++i];
+        } else if (std::strcmp(a, "--font-size") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--font-size requires a pixel size\n");
+                return false;
+            }
+            cfg->font_size = (float)std::atof(argv[++i]);
         } else if (std::strcmp(a, "--tab") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--tab requires a label\n");
@@ -231,6 +240,55 @@ int main(int argc, char **argv)
     style.WindowRounding = 6.0f;
     style.FrameRounding = 4.0f;
     style.WindowBorderSize = 1.0f;
+    style.AntiAliasedLines = true;
+    style.AntiAliasedFill = true;
+
+    int fb_w = 0, fb_h = 0;
+    SDL_GetWindowSizeInPixels(window, &fb_w, &fb_h);
+
+    float font_size = cfg.font_size;
+    if (font_size <= 0.0f) {
+        const char *env_sz = std::getenv("SDL_KITTY_ASK_FONT_SIZE");
+        if (env_sz && env_sz[0]) {
+            font_size = (float)std::atof(env_sz);
+        }
+    }
+    if (font_size <= 0.0f) {
+        if (fb_h >= 720) {
+            font_size = 28.0f;
+        } else if (fb_h >= 520) {
+            font_size = 24.0f;
+        } else {
+            font_size = 20.0f;
+        }
+    }
+    if (font_size < 12.0f) {
+        font_size = 12.0f;
+    } else if (font_size > 48.0f) {
+        font_size = 48.0f;
+    }
+
+    ImFontConfig fcfg;
+    fcfg.OversampleH = 2;
+    fcfg.OversampleV = 2;
+    fcfg.PixelSnapH = true;
+    ImFont *font = nullptr;
+    const char *custom_font = std::getenv("SDL_KITTY_ASK_FONT");
+    if (custom_font && custom_font[0]) {
+        font = io.Fonts->AddFontFromFileTTF(custom_font, font_size, &fcfg);
+    }
+    if (!font) {
+        font = io.Fonts->AddFontFromMemoryCompressedTTF(
+            RobotoMedium_compressed_data, (int)RobotoMedium_compressed_size,
+            font_size, &fcfg);
+    }
+    if (!font) {
+        io.Fonts->AddFontDefaultVector(&fcfg);
+    }
+    style.FontSizeBase = font_size;
+
+    const float ui_scale = font_size / 16.0f;
+    style.ScaleAllSizes(ui_scale);
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
@@ -306,7 +364,7 @@ int main(int argc, char **argv)
             }
         }
 
-        const float footer_h = ImGui::GetFrameHeightWithSpacing() + 18.0f;
+        const float footer_h = ImGui::GetFrameHeightWithSpacing() + 14.0f * ui_scale;
 
         auto draw_tab_options = [&](const AskTab &tab) {
             const int tn = (int)tab.indices.size();
@@ -432,10 +490,11 @@ int main(int argc, char **argv)
             std::snprintf(ok_label, sizeof(ok_label), "OK");
         }
 
+        const float btn_w = 110.0f * ui_scale;
         if (!can_ok) {
             ImGui::BeginDisabled();
         }
-        if (ImGui::Button(ok_label, ImVec2(120, 0)) ||
+        if (ImGui::Button(ok_label, ImVec2(btn_w, 0)) ||
             (can_ok && (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
                         ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))) {
             confirmed = true;
@@ -445,7 +504,7 @@ int main(int argc, char **argv)
             ImGui::EndDisabled();
         }
         ImGui::SameLine();
-        if (!confirmed && ImGui::Button("Cancel", ImVec2(120, 0))) {
+        if (!confirmed && ImGui::Button("Cancel", ImVec2(btn_w, 0))) {
             cancelled = true;
             done = true;
         }

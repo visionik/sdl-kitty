@@ -269,7 +269,7 @@ run_imgui_ask() {
     fi
     case "$a" in
       --multi|-m) multi=1 ;;
-      --out|-o)   skip_next=1 ;;
+      --out|-o|--font-size) skip_next=1 ;;
       --tab)
         has_tabs=1
         [ "$cur_tab_n" -gt "$max_tab_n" ] && max_tab_n="$cur_tab_n"
@@ -312,10 +312,12 @@ run_imgui_ask() {
     vp_h=$((rows - vp_row - 1))
   fi
 
-  local fb_w=$((vp_w * 10))
-  local fb_h=$((vp_h * 20))
-  [ "$fb_w" -lt 480 ] && fb_w=480
-  [ "$fb_h" -lt 340 ] && fb_h=340
+  local fb_w=$((vp_w * 16))
+  local fb_h=$((vp_h * 32))
+  [ "$fb_w" -lt 640 ] && fb_w=640
+  [ "$fb_h" -lt 420 ] && fb_h=420
+  [ "$fb_w" -gt 1600 ] && fb_w=1600
+  [ "$fb_h" -gt 960 ] && fb_h=960
 
   local err_log="${SDL_KITTY_ASK_ERR:-/tmp/sdlk-ask.err}"
   local mode_label="single"
