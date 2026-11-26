@@ -1188,6 +1188,17 @@ EOF
 }
 
 cmd_mame() {
+  # Strip --hud / --hud=SPEC from args before forwarding to mame
+  local clean_args=() _a
+  for _a in "$@"; do
+    case "$_a" in
+      --hud)    export SDL_KITTY_HUD="1" ;;
+      --hud=*)  export SDL_KITTY_HUD="${_a#--hud=}" ;;
+      *)        clean_args+=("$_a") ;;
+    esac
+  done
+  set -- ${clean_args[@]+"${clean_args[@]}"}
+
   local mame_bin="${SDLK_MAME_BIN:-}"
   if [ -z "$mame_bin" ]; then
     mame_bin="$(command -v mame 2>/dev/null || true)"
@@ -1306,6 +1317,16 @@ DEMO_CATALOG=(
 )
 
 cmd_demo() {
+  local clean_args=() _a
+  for _a in "$@"; do
+    case "$_a" in
+      --hud)    export SDL_KITTY_HUD="1" ;;
+      --hud=*)  export SDL_KITTY_HUD="${_a#--hud=}" ;;
+      *)        clean_args+=("$_a") ;;
+    esac
+  done
+  set -- ${clean_args[@]+"${clean_args[@]}"}
+
   local name="${1:-}"
   if [ "$name" = "--list" ] || [ "$name" = "-l" ]; then
     printf '%sBundled sdl-kitty demos:%s\n\n' "$C_BOLD" "$C_RESET"
@@ -1454,8 +1475,16 @@ EOF
 # sdlk run — launch any SDL3 binary under Kitty video driver
 # ---------------------------------------------------------------------------
 cmd_run() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --hud)    export SDL_KITTY_HUD="1"; shift ;;
+      --hud=*)  export SDL_KITTY_HUD="${1#--hud=}"; shift ;;
+      --)       shift; break ;;
+      *)        break ;;
+    esac
+  done
   if [ $# -lt 1 ]; then
-    err "Usage: sdlk run <command> [args...]"
+    err "Usage: sdlk run [--hud[=SPEC]] <command> [args...]"
     return 2
   fi
   export_sdl_env
@@ -1965,19 +1994,22 @@ usage() {
 ${C_BOLD}sdlk${C_RESET} ${SDLK_VERSION} — Run SDL2/SDL3 apps & MAME inside Kitty-capable terminals
 
 ${C_BOLD}Usage:${C_RESET}
-  sdlk                         Interactive launcher (or help if non-TTY)
-  sdlk demo [name|--list]      Run bundled demos (fireworks, imgui, mouse_paint...)
-  sdlk mame [game] [args...]   Launch MAME in the terminal (-video soft -window)
+  sdlk [--hud[=SPEC]]          Interactive launcher (or help if non-TTY)
+  sdlk demo [--hud] [name]     Run bundled demos (fireworks, imgui, mouse_paint...)
+  sdlk mame [--hud] [game]     Launch MAME in the terminal (-video soft -window)
   sdlk mame-roms [opts|ids]    Download free legal arcade ROMs from mamedev.org
   sdlk ask [--multi] Q A B...  Render an inline Dear ImGui radio/checkbox card
   sdlk progress [opts] Title   Render an inline Dear ImGui progress card (reads stdin)
-  sdlk run <cmd> [args...]     Run any SDL3 or SDL2 binary with the Kitty driver
+  sdlk run [--hud] <cmd> ...   Run any SDL3 or SDL2 binary with the Kitty driver
   sdlk bench [--apply]         Benchmark this terminal & recommend fastest settings
   sdlk doctor                  Probe terminal graphics/keyboard, SDL2/3 & MAME status
   sdlk setup                   Interactive MAME + free ROMs setup wizard
   sdlk upgrade [--check]       Update to latest GitHub Release (SHA256 verified)
   sdlk uninstall               Remove local install
   sdlk version                 Print version
+
+${C_BOLD}Options:${C_RESET}
+  --hud[=SPEC]  Show live performance HUD at launch (e.g. --hud or --hud=pos=top-left,theme=amber)
 
 ${C_BOLD}In-app hotkeys:${C_RESET}
   F12        Toggle live performance HUD (FPS, sparkline, TX ms, wire KB/f, dirty %)
@@ -2090,6 +2122,13 @@ cmd_launcher() {
 # Main dispatch
 # ---------------------------------------------------------------------------
 main() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --hud)    export SDL_KITTY_HUD="1"; shift ;;
+      --hud=*)  export SDL_KITTY_HUD="${1#--hud=}"; shift ;;
+      *)        break ;;
+    esac
+  done
   if [ $# -eq 0 ]; then
     cmd_launcher
     return $?

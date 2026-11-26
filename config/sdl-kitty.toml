@@ -24,10 +24,10 @@
 
 [defaults]
 prefer_direct = false
-default_fb_max = "1280x720"
+default_fb_max = "1920x1080"
 # Transport-aware soft-maxes (0 / omit = fall back to default_fb_max).
-default_fb_max_shm = "1280x720"
-default_fb_max_direct = "1280x720"
+default_fb_max_shm = "1920x1080"
+default_fb_max_direct = "1920x1080"
 max_direct_bytes = 8294400          # 1920*1080*4
 af_max_coverage = 0.40
 af_max_pixels = 163840              # 160*1024
@@ -65,9 +65,9 @@ shm_unlink_after_send = false
 # Exp 2 Rex soak (2026-10-24): o=z full a=T OK (solid/dirty/alpha); big wire win vs raw.
 # a=f stays t=d either way. Full a=T takes zlib; a=f with o=z: kitty.frame_edit_zlib.
 prefer_zlib = true
-# kitty.storage_bytes = 10 MB; 1080p RGBA is ~8.3 MB, so cap at 720p.
-default_fb_max = "1280x720"
-default_fb_max_direct = "1280x720"
+# kitty.storage_bytes = 10 MB; 1080p RGB24 is ~6.2 MB (RGBA32 ~8.3 MB), fits comfortably.
+default_fb_max = "1920x1080"
+default_fb_max_direct = "1920x1080"
 # Large dirties -> zlib full a=T (was 1.01 = always a=f, ~2.8 MB/frame on MAME soft).
 # Watch for a=T flash; kill with SDL_KITTY_AF_MAX_COVERAGE=1.01 if needed.
 af_max_coverage = 0.40
@@ -77,14 +77,13 @@ direct_af_when_shm = true
 coalesce_gap_px = 2
 # Keep fb_diff on for MAME soft (tile bbox; no longer expands DIFF_FULL to full FB).
 fb_diff = true
-notes = "prefer_direct+zlib; FB<=720p (10 MB storage); t=s unsupported"
+notes = "prefer_direct+zlib; FB<=1080p (10 MB storage); t=s unsupported"
 
 [terminal.kitty]
 default_fb_max = "1920x1080"
 # SHM: path-only APC; storage 320 MiB, so soft 1080p.
 default_fb_max_shm = "1920x1080"
-# Direct: chunked under kitty.max_escape_bytes (256 KiB), so soft 720p.
-default_fb_max_direct = "1280x720"
+default_fb_max_direct = "1920x1080"
 # graphics.c: a=f edits root (r=1) with t=d and marks dirty. Historical
 # "SHM a=f blank" was likely client unlink-before-open; keep unlink=false.
 # Allow direct sparse a=f on SHM sessions; af_max_* caps base64.
@@ -94,7 +93,7 @@ af_max_pixels = 163840
 # Faster quit drain: hot path uses q=2 so few late APC OK replies.
 drain_passes = 2
 drain_quiet_us = 5000
-notes = "Kitty: SHM FB 1080p / direct 720p; APC <=256KiB; af_max_* on multi-rect totals"
+notes = "Kitty: FB 1080p; APC <=256KiB; af_max_* on multi-rect totals"
 
 [terminal.ghostty]
 # Ghostty >= 1.4 / tip, and the base for ghostty-1.3 (which only changes facts:
@@ -102,13 +101,13 @@ notes = "Kitty: SHM FB 1080p / direct 720p; APC <=256KiB; af_max_* on multi-rect
 default_fb_max = "1920x1080"
 # SHM on; image-storage-limit 320 MB, so soft 1080p.
 default_fb_max_shm = "1920x1080"
-default_fb_max_direct = "1280x720"
+default_fb_max_direct = "1920x1080"
 prefer_zlib = false
 # Real a=f: allow direct sparse edits while full frames stay SHM.
 direct_af_when_shm = true
 # Exp 5 soak: merge near dirty rects before multi a=f.
 coalesce_gap_px = 2
-notes = "Ghostty: SHM 1080p / direct 720p; a=f from 1.4; coalesce=2; APC <=65MiB"
+notes = "Ghostty: FB 1080p; a=f from 1.4; coalesce=2; APC <=65MiB"
 
 [terminal.wezterm]
 # Facts: no working a=f (#8281), so full a=T; no t=s on macOS (#8063).
@@ -116,8 +115,8 @@ notes = "Ghostty: SHM 1080p / direct 720p; a=f from 1.4; coalesce=2; APC <=65MiB
 prefer_direct = true
 # Exp 2 soak: zlib o=z instead of raw base64.
 prefer_zlib = true
-default_fb_max = "1280x720"
-default_fb_max_direct = "1280x720"
+default_fb_max = "1920x1080"
+default_fb_max_direct = "1920x1080"
 drain_passes = 2
 drain_quiet_us = 5000
 # dirty_at overlays crash WezTerm 20240203; keep multi off.

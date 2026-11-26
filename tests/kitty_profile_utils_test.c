@@ -105,8 +105,8 @@ static void test_rex_from_environment(void)
     expect_float_near(p->af_max_coverage, 0.40f, "rex af_max_coverage");
     expect_int((long long)p->af_max_pixels, 1920 * 1080, "rex af pixels");
     expect_int(p->coalesce_gap_px, 2, "rex coalesce");
-    expect_int(p->default_fb_max_w, 1280, "rex fb w");
-    expect_int(p->default_fb_max_h, 720, "rex fb h");
+    expect_int(p->default_fb_max_w, 1920, "rex fb w");
+    expect_int(p->default_fb_max_h, 1080, "rex fb h");
     expect_true(!p->shm_unlink_after_send, "shm_unlink_after_send false");
 
     fresh();
@@ -129,7 +129,7 @@ static void test_kitty(void)
     expect_int((long long)p->apc_chunk_bytes, 262144 - 256, "kitty chunk from kitty.max_escape_bytes");
     expect_int(p->default_fb_max_w, 1920, "kitty fb w");
     expect_int(p->default_fb_max_shm_w, 1920, "kitty fb shm w");
-    expect_int(p->default_fb_max_direct_w, 1280, "kitty fb direct w");
+    expect_int(p->default_fb_max_direct_w, 1920, "kitty fb direct w");
     expect_true(p->direct_af_when_shm, "kitty direct_af_when_shm");
     expect_int(p->drain_passes, 2, "kitty drain passes");
 
