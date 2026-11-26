@@ -19,20 +19,20 @@ class SdlKitty < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/visionik/sdl-kitty/releases/download/v#{version}/sdl-kitty-#{version}-darwin-arm64.tar.gz"
-      sha256 "REPLACE_WITH_DARWIN_ARM64_SHA256"
+      sha256 "81ab836201c82ecd7489cd164b6b27bb595900ed3dee2d83e32501eaf3ead19e"
     else
       url "https://github.com/visionik/sdl-kitty/releases/download/v#{version}/sdl-kitty-#{version}-darwin-x86_64.tar.gz"
-      sha256 "REPLACE_WITH_DARWIN_X86_64_SHA256"
+      sha256 "c40947c6cc4c7b73a742f224302e55d42e90daf3e5363e7bff1853221366f94f"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/visionik/sdl-kitty/releases/download/v#{version}/sdl-kitty-#{version}-linux-arm64.tar.gz"
-      sha256 "REPLACE_WITH_LINUX_ARM64_SHA256"
+      sha256 "0e7115d3a522eb044403a19e66aabff464431066eef3b905b0a511321d3ceb74"
     else
       url "https://github.com/visionik/sdl-kitty/releases/download/v#{version}/sdl-kitty-#{version}-linux-x86_64.tar.gz"
-      sha256 "REPLACE_WITH_LINUX_X86_64_SHA256"
+      sha256 "7b3e56c15af310a26bbc9a73180e7645b917ffd42e67af4a4981a1dfa686d0bc"
     end
   end
 
