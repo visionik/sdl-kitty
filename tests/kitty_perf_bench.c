@@ -165,13 +165,19 @@ static void run_microbenchmarks(void)
     }
     printf("  %-28s %8.1f us\n", "micro.tile_diff_static_1080p", median_of(samples, ITERS));
 
-    /* 7. fnv1a_720p */
+    /* 7. fnv1a_720p & fast_hash_720p */
     for (it = 0; it < ITERS; ++it) {
         const Uint64 t0 = SDL_GetTicksNS();
         sink ^= KITTY_Fnv1a64(rgb720_a, 1280u * 720u * 3u);
         samples[it] = (double)(SDL_GetTicksNS() - t0) / 1e3;
     }
     printf("  %-28s %8.1f us\n", "micro.fnv1a_720p", median_of(samples, ITERS));
+    for (it = 0; it < ITERS; ++it) {
+        const Uint64 t0 = SDL_GetTicksNS();
+        sink ^= KITTY_FastHash64(rgb720_a, 1280u * 720u * 3u);
+        samples[it] = (double)(SDL_GetTicksNS() - t0) / 1e3;
+    }
+    printf("  %-28s %8.1f us\n", "micro.fast_hash_720p", median_of(samples, ITERS));
 
     /* 8. pack_rgb_band & subrect */
     {
