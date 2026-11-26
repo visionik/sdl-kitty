@@ -20,7 +20,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
-#include "roboto_medium_compressed.h"
+#include "geist_regular_compressed.h"
 
 #include <SDL3/SDL.h>
 
@@ -504,7 +504,7 @@ int main(int argc, char **argv)
     }
     if (!font) {
         font = io.Fonts->AddFontFromMemoryCompressedTTF(
-            RobotoMedium_compressed_data, (int)RobotoMedium_compressed_size,
+            GeistRegular_compressed_data, (int)GeistRegular_compressed_size,
             font_size, &fcfg);
     }
     if (!font) {
