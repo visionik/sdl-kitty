@@ -459,17 +459,17 @@ int main(int argc, char **argv)
     }
     if (font_size <= 0.0f) {
         if (fb_h >= 720) {
-            font_size = 28.0f;
+            font_size = 34.0f;
         } else if (fb_h >= 520) {
-            font_size = 24.0f;
+            font_size = 30.0f;
         } else {
-            font_size = 20.0f;
+            font_size = 26.0f;
         }
     }
     if (font_size < 12.0f) {
         font_size = 12.0f;
-    } else if (font_size > 48.0f) {
-        font_size = 48.0f;
+    } else if (font_size > 56.0f) {
+        font_size = 56.0f;
     }
 
     ImFontConfig fcfg;
@@ -491,7 +491,7 @@ int main(int argc, char **argv)
     }
     style.FontSizeBase = font_size;
 
-    const float ui_scale = font_size / 16.0f;
+    const float ui_scale = (font_size > 20.0f) ? (font_size / 20.0f) : 1.0f;
     style.ScaleAllSizes(ui_scale);
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
