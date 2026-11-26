@@ -1232,22 +1232,21 @@ cmd_mame() {
     fi
   fi
 
-  if [ -z "${SDLK_QUIET:-}" ] && is_interactive_tty; then
-    printf '%sControls:%s 5=Coin · 1=Start · Arrows=Move · Z/X=Fire · Tab=Menu · Esc=Quit\n' \
-      "$C_BOLD" "$C_RESET" >/dev/tty
-    sleep 0.6
+  local mame_overlay="${SDL_KITTY_OVERLAY:-}"
+  if [ -z "${SDLK_QUIET:-}" ] && [ -z "$mame_overlay" ] && is_interactive_tty; then
+    mame_overlay="pos=bottom;delay=0.3s;duration=30s;fade=0.6s;text=5=Coin · 1=Start · Arrows=Move\nZ/X=Fire · Tab=Menu · Esc=Quit"
   fi
 
   export_sdl_env
   local err_log="${SDLK_MAME_ERR:-/tmp/sdlk-mame.err}"
   if [ "$err_log" = "-" ] && [ "${SDLK_IN_LAUNCHER:-0}" != "1" ]; then
-    exec "$mame_bin" ${args[@]+"${args[@]}"} "$@"
+    SDL_KITTY_OVERLAY="$mame_overlay" exec "$mame_bin" ${args[@]+"${args[@]}"} "$@"
   fi
   local rc=0
   if [ "$err_log" = "-" ]; then
-    "$mame_bin" ${args[@]+"${args[@]}"} "$@" || rc=$?
+    SDL_KITTY_OVERLAY="$mame_overlay" "$mame_bin" ${args[@]+"${args[@]}"} "$@" || rc=$?
   else
-    "$mame_bin" ${args[@]+"${args[@]}"} "$@" 2>"$err_log" || rc=$?
+    SDL_KITTY_OVERLAY="$mame_overlay" "$mame_bin" ${args[@]+"${args[@]}"} "$@" 2>"$err_log" || rc=$?
   fi
   if [ "$rc" -ne 0 ] && [ -s "$err_log" ]; then
     err "MAME exited with status ${rc}:"
