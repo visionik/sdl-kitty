@@ -339,9 +339,13 @@ static void test_fused_convert_diff(void)
     out = KITTY_ConvertAndTileDiffRects(surf, scratch, false, 32, 0.45f, rects, 16, &count, &bbox);
     expect_int((int)out, (int)KITTY_DIFF_RECT, "fused 2 corners -> RECT");
     expect_int(count, 2, "fused 2 corners -> 2 rects");
+    expect_int(rects[0].x, 4, "fused trimmed r1.x");
     expect_int(rects[0].y, 4, "fused trimmed r1.y");
+    expect_int(rects[0].w, 10, "fused trimmed r1.w");
     expect_int(rects[0].h, 10, "fused trimmed r1.h");
+    expect_int(rects[1].x, 100, "fused trimmed r2.x");
     expect_int(rects[1].y, 100, "fused trimmed r2.y");
+    expect_int(rects[1].w, 10, "fused trimmed r2.w");
     expect_int(rects[1].h, 10, "fused trimmed r2.h");
     expect_int(scratch[(4 * 128 + 4) * 3 + 0], 200, "fused updated r1 R");
     expect_int(scratch[(100 * 128 + 100) * 3 + 1], 220, "fused updated r2 G");
@@ -361,6 +365,25 @@ static void test_fused_convert_diff(void)
         expect_int(scratch[(4 * 128 + 4) * 3 + 0], 77, "rect check updated R");
         expect_true(KITTY_ConvertSurfaceRectCheckChanged(surf, &r1, scratch, false, &chg), "rect check repeat ok");
         expect_true(!chg, "rect check repeat -> false");
+    }
+
+    /* Fused convert + check + direct pack */
+    {
+        Uint8 packed[10 * 10 * 3];
+        size_t plen = 0;
+        bool chg = true;
+        expect_true(KITTY_ConvertSurfaceRectCheckAndPack(surf, &r1, scratch, packed, sizeof(packed), false, &chg, &plen),
+                    "convert+pack unchanged ok");
+        expect_true(!chg, "convert+pack unchanged -> false");
+        expect_int((int)plen, 300, "convert+pack len 300");
+        SDL_FillSurfaceRect(surf, &r1, SDL_MapSurfaceRGB(surf, 12, 34, 56));
+        expect_true(KITTY_ConvertSurfaceRectCheckAndPack(surf, &r1, scratch, packed, sizeof(packed), false, &chg, &plen),
+                    "convert+pack changed ok");
+        expect_true(chg, "convert+pack changed -> true");
+        expect_int(packed[0], 12, "packed R");
+        expect_int(packed[1], 34, "packed G");
+        expect_int(packed[2], 56, "packed B");
+        expect_int(scratch[(4 * 128 + 4) * 3 + 0], 12, "scratch updated R");
     }
 
     free(scratch);

@@ -54,6 +54,15 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(kitty_perf_bench PRIVATE util pthread)
 endif()
 
+find_package(ZLIB REQUIRED)
+add_executable(kitty_zlib_roundtrip_test
+  kitty_zlib_roundtrip_test.c)
+target_link_libraries(kitty_zlib_roundtrip_test PRIVATE SDL3::SDL3 ZLIB::ZLIB)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(kitty_zlib_roundtrip_test PRIVATE util pthread)
+endif()
+add_test(NAME kitty_zlib_roundtrip_test COMMAND kitty_zlib_roundtrip_test)
+
 # The compiled-in copy of config/*.toml, and the matrix in docs/terminals.md, must match them.
 find_package(Python3 3.11 COMPONENTS Interpreter)
 if(Python3_FOUND)
