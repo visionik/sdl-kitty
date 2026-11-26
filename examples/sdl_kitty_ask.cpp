@@ -48,18 +48,197 @@ struct AskConfig {
     std::vector<std::string> options;
     std::vector<AskTab> tabs;
     std::string out_path;
+    std::string theme;
     float font_size = 0.0f; /* 0 = auto from framebuffer height */
     bool multi = false;
 };
 
+struct AskTheme {
+    ImVec4 bg;
+    ImVec4 surface;
+    ImVec4 frame;
+    ImVec4 frame_hover;
+    ImVec4 frame_active;
+    ImVec4 border;
+    ImVec4 text;
+    ImVec4 text_muted;
+    ImVec4 heading;
+    ImVec4 accent;
+    ImVec4 accent_hover;
+    ImVec4 accent_active;
+    ImVec4 accent_text;
+    ImVec4 tab;
+    ImVec4 tab_hover;
+    ImVec4 tab_active;
+    ImVec4 btn;
+    ImVec4 btn_hover;
+    ImVec4 btn_active;
+};
+
+static ImVec4 rgb_hex(unsigned int rgb, float a = 1.0f)
+{
+    return ImVec4(
+        (float)((rgb >> 16) & 0xFFu) / 255.0f,
+        (float)((rgb >> 8) & 0xFFu) / 255.0f,
+        (float)(rgb & 0xFFu) / 255.0f,
+        a);
+}
+
+static AskTheme resolve_theme(const std::string &name)
+{
+    AskTheme t;
+    if (name == "catppuccin" || name == "mocha") {
+        t.bg            = rgb_hex(0x1E1E2E);
+        t.surface       = rgb_hex(0x26263A);
+        t.frame         = rgb_hex(0x313244);
+        t.frame_hover   = rgb_hex(0x3E4057);
+        t.frame_active  = rgb_hex(0x4B4E69);
+        t.border        = rgb_hex(0x45475A);
+        t.text          = rgb_hex(0xCDD6F4);
+        t.text_muted    = rgb_hex(0x9399B2);
+        t.heading       = rgb_hex(0x89DCEB);
+        t.accent        = rgb_hex(0xCBA6F7);
+        t.accent_hover  = rgb_hex(0xD8BCFA);
+        t.accent_active = rgb_hex(0xB48BE8);
+        t.accent_text   = rgb_hex(0x11111B);
+        t.tab           = rgb_hex(0x28283D);
+        t.tab_hover     = rgb_hex(0x393B52);
+        t.tab_active    = rgb_hex(0x453C63);
+        t.btn           = rgb_hex(0x313244);
+        t.btn_hover     = rgb_hex(0x41435A);
+        t.btn_active    = rgb_hex(0x4F526D);
+    } else if (name == "nord") {
+        t.bg            = rgb_hex(0x1E2430);
+        t.surface       = rgb_hex(0x262E3D);
+        t.frame         = rgb_hex(0x2E3748);
+        t.frame_hover   = rgb_hex(0x3B465C);
+        t.frame_active  = rgb_hex(0x46536C);
+        t.border        = rgb_hex(0x434C5E);
+        t.text          = rgb_hex(0xECEFF4);
+        t.text_muted    = rgb_hex(0x9AA7BC);
+        t.heading       = rgb_hex(0x88C0D0);
+        t.accent        = rgb_hex(0x88C0D0);
+        t.accent_hover  = rgb_hex(0x9FD0DF);
+        t.accent_active = rgb_hex(0x6BA9BC);
+        t.accent_text   = rgb_hex(0x161B24);
+        t.tab           = rgb_hex(0x283040);
+        t.tab_hover     = rgb_hex(0x384359);
+        t.tab_active    = rgb_hex(0x3E5269);
+        t.btn           = rgb_hex(0x2E3748);
+        t.btn_hover     = rgb_hex(0x3D4960);
+        t.btn_active    = rgb_hex(0x4C5B75);
+    } else if (name == "amber" || name == "arcade" || name == "crt") {
+        t.bg            = rgb_hex(0x141210);
+        t.surface       = rgb_hex(0x1D1915);
+        t.frame         = rgb_hex(0x2A231C);
+        t.frame_hover   = rgb_hex(0x3A2F24);
+        t.frame_active  = rgb_hex(0x4A3C2C);
+        t.border        = rgb_hex(0x4B3D2E);
+        t.text          = rgb_hex(0xF6EDE0);
+        t.text_muted    = rgb_hex(0xA6937C);
+        t.heading       = rgb_hex(0xFFD166);
+        t.accent        = rgb_hex(0xF5A623);
+        t.accent_hover  = rgb_hex(0xFFB845);
+        t.accent_active = rgb_hex(0xD98D14);
+        t.accent_text   = rgb_hex(0x16110A);
+        t.tab           = rgb_hex(0x221C17);
+        t.tab_hover     = rgb_hex(0x352B20);
+        t.tab_active    = rgb_hex(0x4D391D);
+        t.btn           = rgb_hex(0x2A231C);
+        t.btn_hover     = rgb_hex(0x3D3227);
+        t.btn_active    = rgb_hex(0x4F4031);
+    } else if (name == "light") {
+        t.bg            = rgb_hex(0xF4F6FA);
+        t.surface       = rgb_hex(0xFFFFFF);
+        t.frame         = rgb_hex(0xE8EDF5);
+        t.frame_hover   = rgb_hex(0xDCE4F0);
+        t.frame_active  = rgb_hex(0xCCD7EA);
+        t.border        = rgb_hex(0xCBD4E1);
+        t.text          = rgb_hex(0x1B2230);
+        t.text_muted    = rgb_hex(0x5B667A);
+        t.heading       = rgb_hex(0x0958C7);
+        t.accent        = rgb_hex(0x0969DA);
+        t.accent_hover  = rgb_hex(0x1F7AE6);
+        t.accent_active = rgb_hex(0x0550AE);
+        t.accent_text   = rgb_hex(0xFFFFFF);
+        t.tab           = rgb_hex(0xE6ECF5);
+        t.tab_hover     = rgb_hex(0xD6E1F2);
+        t.tab_active    = rgb_hex(0xC6DAF8);
+        t.btn           = rgb_hex(0xE5EBF4);
+        t.btn_hover     = rgb_hex(0xD6DFEE);
+        t.btn_active    = rgb_hex(0xC6D3E8);
+    } else {
+        /* Default: "tokyo" — deep midnight indigo + luminous periwinkle/cyan */
+        t.bg            = rgb_hex(0x151828);
+        t.surface       = rgb_hex(0x1B1F34);
+        t.frame         = rgb_hex(0x242A45);
+        t.frame_hover   = rgb_hex(0x2F375B);
+        t.frame_active  = rgb_hex(0x3A4470);
+        t.border        = rgb_hex(0x323B60);
+        t.text          = rgb_hex(0xE6ECF8);
+        t.text_muted    = rgb_hex(0x8894B8);
+        t.heading       = rgb_hex(0x7DCFFF);
+        t.accent        = rgb_hex(0x7AA2F7);
+        t.accent_hover  = rgb_hex(0x8FB4FF);
+        t.accent_active = rgb_hex(0x5E88E5);
+        t.accent_text   = rgb_hex(0x0E1222);
+        t.tab           = rgb_hex(0x1F243D);
+        t.tab_hover     = rgb_hex(0x2D3559);
+        t.tab_active    = rgb_hex(0x34437A);
+        t.btn           = rgb_hex(0x242A45);
+        t.btn_hover     = rgb_hex(0x31395E);
+        t.btn_active    = rgb_hex(0x3C4673);
+    }
+    return t;
+}
+
+static void apply_theme(ImGuiStyle &style, const AskTheme &t)
+{
+    ImVec4 *c = style.Colors;
+    c[ImGuiCol_Text]                 = t.text;
+    c[ImGuiCol_TextDisabled]         = t.text_muted;
+    c[ImGuiCol_WindowBg]             = t.bg;
+    c[ImGuiCol_ChildBg]              = t.surface;
+    c[ImGuiCol_PopupBg]              = t.surface;
+    c[ImGuiCol_Border]               = t.border;
+    c[ImGuiCol_BorderShadow]         = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    c[ImGuiCol_FrameBg]              = t.frame;
+    c[ImGuiCol_FrameBgHovered]       = t.frame_hover;
+    c[ImGuiCol_FrameBgActive]        = t.frame_active;
+    c[ImGuiCol_CheckMark]            = t.accent;
+    c[ImGuiCol_SliderGrab]           = t.accent;
+    c[ImGuiCol_SliderGrabActive]     = t.accent_active;
+    c[ImGuiCol_Button]               = t.btn;
+    c[ImGuiCol_ButtonHovered]        = t.btn_hover;
+    c[ImGuiCol_ButtonActive]         = t.btn_active;
+    c[ImGuiCol_Header]               = t.frame;
+    c[ImGuiCol_HeaderHovered]        = t.frame_hover;
+    c[ImGuiCol_HeaderActive]         = t.frame_active;
+    c[ImGuiCol_Separator]            = t.border;
+    c[ImGuiCol_SeparatorHovered]     = t.accent;
+    c[ImGuiCol_SeparatorActive]      = t.accent_active;
+    c[ImGuiCol_Tab]                  = t.tab;
+    c[ImGuiCol_TabHovered]           = t.tab_hover;
+    c[ImGuiCol_TabSelected]          = t.tab_active;
+    c[ImGuiCol_TabSelectedOverline]  = t.accent;
+    c[ImGuiCol_TabDimmed]            = t.tab;
+    c[ImGuiCol_TabDimmedSelected]    = t.tab_active;
+    c[ImGuiCol_ScrollbarBg]          = t.surface;
+    c[ImGuiCol_ScrollbarGrab]        = t.border;
+    c[ImGuiCol_ScrollbarGrabHovered] = t.frame_hover;
+    c[ImGuiCol_ScrollbarGrabActive]  = t.accent;
+    c[ImGuiCol_NavCursor]            = t.accent;
+}
+
 static void usage(const char *argv0)
 {
     std::fprintf(stderr,
-                 "Usage: %s [--multi|-m] [--out FILE] [--font-size PX] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
+                 "Usage: %s [--multi|-m] [--out FILE] [--font-size PX] [--theme NAME] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
                  "  With --out FILE: up to %d options across any number of --tab groups;\n"
                  "    writes 0-based indices (one per line) to FILE, exits 0 (OK) or %d (cancel).\n"
                  "  Without --out: single-select 2–%d (exit 0..n-1), --multi 2–%d (bitmask 0..127).\n"
-                 "  Env: SDL_KITTY_ASK_FONT_SIZE (px), SDL_KITTY_ASK_FONT (/path/to/font.ttf).\n"
+                 "  Themes: tokyo (default), catppuccin, nord, amber, light.\n"
+                 "  Env: SDL_KITTY_ASK_THEME, SDL_KITTY_ASK_FONT_SIZE (px), SDL_KITTY_ASK_FONT (/path/to/font.ttf).\n"
                  "  Cancel / Esc: %d\n",
                  argv0, kMaxFileOptions, kExitCancel,
                  kMaxExitSingleOptions, kMaxExitMultiOptions, kExitCancel);
@@ -86,6 +265,12 @@ static bool parse_args(int argc, char **argv, AskConfig *cfg)
                 return false;
             }
             cfg->font_size = (float)std::atof(argv[++i]);
+        } else if (std::strcmp(a, "--theme") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--theme requires a theme name\n");
+                return false;
+            }
+            cfg->theme = argv[++i];
         } else if (std::strcmp(a, "--tab") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--tab requires a label\n");
@@ -236,10 +421,29 @@ int main(int argc, char **argv)
     io.IniFilename = nullptr;
 
     ImGui::StyleColorsDark();
+    std::string theme_name = cfg.theme;
+    if (theme_name.empty()) {
+        const char *env_theme = std::getenv("SDL_KITTY_ASK_THEME");
+        if (env_theme && env_theme[0]) {
+            theme_name = env_theme;
+        }
+    }
+    const AskTheme theme = resolve_theme(theme_name);
     ImGuiStyle &style = ImGui::GetStyle();
-    style.WindowRounding = 6.0f;
-    style.FrameRounding = 4.0f;
+    apply_theme(style, theme);
+    style.WindowRounding = 8.0f;
+    style.ChildRounding = 8.0f;
+    style.FrameRounding = 6.0f;
+    style.TabRounding = 6.0f;
+    style.GrabRounding = 6.0f;
+    style.ScrollbarRounding = 6.0f;
     style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;
+    style.WindowPadding = ImVec2(16.0f, 14.0f);
+    style.FramePadding = ImVec2(10.0f, 6.0f);
+    style.ItemSpacing = ImVec2(10.0f, 8.0f);
+    style.TabBarOverlineSize = 2.5f;
     style.AntiAliasedLines = true;
     style.AntiAliasedFill = true;
 
@@ -299,7 +503,7 @@ int main(int argc, char **argv)
     bool first_frame = true;
     int active_tab = 0;
     int pending_tab = -1;
-    const ImVec4 clear_color = ImVec4(0.12f, 0.14f, 0.18f, 1.0f);
+    const ImVec4 clear_color = theme.bg;
 
     while (!done) {
         SDL_Event event;
@@ -343,7 +547,10 @@ int main(int argc, char **argv)
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoSavedSettings);
 
+        ImGui::PushStyleColor(ImGuiCol_Text, theme.heading);
         ImGui::TextWrapped("%s", cfg.question.c_str());
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
 
@@ -381,7 +588,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            ImGui::BeginChild("options", ImVec2(0.0f, -footer_h), ImGuiChildFlags_None);
+            ImGui::BeginChild("options", ImVec2(0.0f, -footer_h), ImGuiChildFlags_Borders);
             if (cfg.multi) {
                 for (int j = 0; j < tn; ++j) {
                     const int gi = tab.indices[(size_t)j];
@@ -494,12 +701,17 @@ int main(int argc, char **argv)
         if (!can_ok) {
             ImGui::BeginDisabled();
         }
+        ImGui::PushStyleColor(ImGuiCol_Button, theme.accent);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, theme.accent_hover);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, theme.accent_active);
+        ImGui::PushStyleColor(ImGuiCol_Text, theme.accent_text);
         if (ImGui::Button(ok_label, ImVec2(btn_w, 0)) ||
             (can_ok && (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
                         ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))) {
             confirmed = true;
             done = true;
         }
+        ImGui::PopStyleColor(4);
         if (!can_ok) {
             ImGui::EndDisabled();
         }

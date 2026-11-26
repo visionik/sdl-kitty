@@ -34,7 +34,7 @@ for a in "$@"; do
   case "$a" in
     --multi|-m) MULTI=1; FORWARD+=("$a") ;;
     --help|-h) FORWARD+=("$a") ;;
-    --font-size) FORWARD+=("$a"); SKIP_NEXT=1 ;;
+    --font-size|--theme) FORWARD+=("$a"); SKIP_NEXT=1 ;;
     --out)
       echo "sdl-kitty-ask: choice is the exit status; --out removed" >&2
       exit 2

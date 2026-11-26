@@ -269,7 +269,7 @@ run_imgui_ask() {
     fi
     case "$a" in
       --multi|-m) multi=1 ;;
-      --out|-o|--font-size) skip_next=1 ;;
+      --out|-o|--font-size|--theme) skip_next=1 ;;
       --tab)
         has_tabs=1
         [ "$cur_tab_n" -gt "$max_tab_n" ] && max_tab_n="$cur_tab_n"
