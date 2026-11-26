@@ -406,8 +406,12 @@ run_imgui_progress() {
     tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/sdlk-progress.XXXXXX")"
     fifo="${tmpdir}/feed"
     mkfifo "$fifo"
-    ( cat > "$fifo" 2>/dev/null ) &
+    # Bash redirects stdin of '&' background jobs to /dev/null in scripts;
+    # dup stdin to fd 3 first so the relay actually reads the caller's pipe.
+    exec 3<&0
+    ( cat <&3 > "$fifo" 2>/dev/null ) &
     relay_pid=$!
+    exec 3<&-
     extra_args=(--feed "$fifo")
   fi
 
