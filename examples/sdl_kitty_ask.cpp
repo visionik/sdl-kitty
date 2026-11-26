@@ -784,10 +784,12 @@ int main(int argc, char **argv)
 
             char pct_txt[32];
             std::snprintf(pct_txt, sizeof(pct_txt), "%d%%", (int)(pct * 100.0f + 0.5f));
+            ImGui::PushFont(nullptr, font_size * 0.88f);
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                   had_error ? col_err : (finished ? col_ok : theme.accent));
-            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 0.95f), pct_txt);
+            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 1.18f), pct_txt);
             ImGui::PopStyleColor();
+            ImGui::PopFont();
 
             if (sub_active) {
                 ImGui::Spacing();
@@ -797,29 +799,83 @@ int main(int argc, char **argv)
                 } else {
                     std::snprintf(sub_txt, sizeof(sub_txt), "%d%%", (int)(sub_pct * 100.0f + 0.5f));
                 }
+                ImGui::PushFont(nullptr, font_size * 0.80f);
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, theme.heading);
-                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 0.72f), sub_txt);
+                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 1.08f), sub_txt);
                 ImGui::PopStyleColor();
+                ImGui::PopFont();
             }
 
             ImGui::Spacing();
             const float footer_h = ImGui::GetFrameHeightWithSpacing() + 14.0f * ui_scale;
             ImGui::BeginChild("progress_log", ImVec2(0.0f, -footer_h), ImGuiChildFlags_Borders);
-            ImGui::PushFont(nullptr, font_size * 0.85f);
+            const float log_font_sz = font_size * 0.85f;
+            ImGui::PushFont(nullptr, log_font_sz);
+            ImDrawList *dl = ImGui::GetWindowDrawList();
             for (size_t i = 0; i < logs.size(); ++i) {
                 const std::string &ln = logs[i];
+                int icon_kind = 0; /* 1=check, 2=cross */
+                const char *text_ptr = ln.c_str();
                 bool colored = false;
-                if (ln.rfind("\xE2\x9C\x93", 0) == 0 || ln.rfind("+ ", 0) == 0) {
+                if (ln.rfind("\xE2\x9C\x93 ", 0) == 0) {
+                    icon_kind = 1;
+                    text_ptr = ln.c_str() + 4;
                     ImGui::PushStyleColor(ImGuiCol_Text, col_ok);
                     colored = true;
-                } else if (ln.rfind("\xE2\x9C\x97", 0) == 0 || ln.rfind("! ", 0) == 0) {
+                } else if (ln.rfind("\xE2\x9C\x93", 0) == 0) {
+                    icon_kind = 1;
+                    text_ptr = ln.c_str() + 3;
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_ok);
+                    colored = true;
+                } else if (ln.rfind("+ ", 0) == 0) {
+                    icon_kind = 1;
+                    text_ptr = ln.c_str() + 2;
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_ok);
+                    colored = true;
+                } else if (ln.rfind("\xE2\x9C\x97 ", 0) == 0) {
+                    icon_kind = 2;
+                    text_ptr = ln.c_str() + 4;
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_err);
+                    colored = true;
+                } else if (ln.rfind("\xE2\x9C\x97", 0) == 0) {
+                    icon_kind = 2;
+                    text_ptr = ln.c_str() + 3;
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_err);
+                    colored = true;
+                } else if (ln.rfind("! ", 0) == 0) {
+                    icon_kind = 2;
+                    text_ptr = ln.c_str() + 2;
                     ImGui::PushStyleColor(ImGuiCol_Text, col_err);
                     colored = true;
                 } else if (ln.rfind("\xE2\x86\x93", 0) == 0 || ln.rfind("\xE2\x86\x92", 0) == 0) {
                     ImGui::PushStyleColor(ImGuiCol_Text, theme.heading);
                     colored = true;
                 }
-                ImGui::TextWrapped("%s", ln.c_str());
+
+                if (icon_kind != 0) {
+                    const ImVec2 p = ImGui::GetCursorScreenPos();
+                    const float sz = log_font_sz * 0.56f;
+                    const float cy = p.y + log_font_sz * 0.52f;
+                    const float cx = p.x + sz * 0.5f;
+                    const float thick = (log_font_sz >= 24.0f) ? 2.5f : 2.0f;
+                    if (icon_kind == 1) {
+                        const ImU32 ucol = ImGui::ColorConvertFloat4ToU32(col_ok);
+                        const ImVec2 pts[3] = {
+                            ImVec2(cx - sz * 0.45f, cy + sz * 0.02f),
+                            ImVec2(cx - sz * 0.10f, cy + sz * 0.38f),
+                            ImVec2(cx + sz * 0.50f, cy - sz * 0.36f)
+                        };
+                        dl->AddPolyline(pts, 3, ucol, ImDrawFlags_None, thick);
+                    } else {
+                        const ImU32 ucol = ImGui::ColorConvertFloat4ToU32(col_err);
+                        const float r = sz * 0.36f;
+                        dl->AddLine(ImVec2(cx - r, cy - r), ImVec2(cx + r, cy + r), ucol, thick);
+                        dl->AddLine(ImVec2(cx - r, cy + r), ImVec2(cx + r, cy - r), ucol, thick);
+                    }
+                    ImGui::Dummy(ImVec2(sz * 1.25f, log_font_sz));
+                    ImGui::SameLine(0.0f, 4.0f);
+                }
+                ImGui::TextWrapped("%s", text_ptr);
                 if (colored) {
                     ImGui::PopStyleColor();
                 }
