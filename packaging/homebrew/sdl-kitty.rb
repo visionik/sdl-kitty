@@ -46,6 +46,9 @@ class SdlKitty < Formula
     if build.head?
       system "cmake", "-S", ".", "-B", "build", "-G", "Ninja",
              "-DCMAKE_BUILD_TYPE=Release",
+             "-DSDL_UNIX_CONSOLE_BUILD=ON",
+             "-DSDL_X11=OFF",
+             "-DSDL_WAYLAND=OFF",
              "-DSDL_KITTY_RELOCATABLE=ON",
              "-DSDL_KITTY_BUILD_SDL_TESTS=OFF",
              *std_cmake_args
