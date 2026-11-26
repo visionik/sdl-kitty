@@ -458,18 +458,39 @@ int main(int argc, char **argv)
         }
     }
     if (font_size <= 0.0f) {
-        if (fb_h >= 720) {
-            font_size = 34.0f;
+        /* Size text relative to terminal cell rows when SDL_KITTY_VIEWPORT is set,
+         * targeting ~1.45x terminal cell height (~46px at 32px/row) so Roboto's
+         * x-height reads larger and more comfortably than plain terminal text. */
+        int vp_rows = 0;
+        const char *vp_env = std::getenv("SDL_KITTY_VIEWPORT");
+        if (vp_env && vp_env[0]) {
+            int c = 0, r = 0, w = 0, h = 0;
+            if (std::sscanf(vp_env, "%d,%d,%d,%d", &c, &r, &w, &h) == 4 && h > 0) {
+                vp_rows = h;
+            }
+        }
+        if (vp_rows > 0 && fb_h > 0) {
+            const float px_per_row = (float)fb_h / (float)vp_rows;
+            font_size = px_per_row * 1.45f;
+            const float max_fit = (float)fb_h / 8.5f;
+            if (font_size > max_fit) {
+                font_size = max_fit;
+            }
+            if (font_size < 28.0f) {
+                font_size = 28.0f;
+            }
+        } else if (fb_h >= 720) {
+            font_size = 46.0f;
         } else if (fb_h >= 520) {
-            font_size = 30.0f;
+            font_size = 40.0f;
         } else {
-            font_size = 26.0f;
+            font_size = 34.0f;
         }
     }
-    if (font_size < 12.0f) {
-        font_size = 12.0f;
-    } else if (font_size > 56.0f) {
-        font_size = 56.0f;
+    if (font_size < 14.0f) {
+        font_size = 14.0f;
+    } else if (font_size > 72.0f) {
+        font_size = 72.0f;
     }
 
     ImFontConfig fcfg;
@@ -491,7 +512,7 @@ int main(int argc, char **argv)
     }
     style.FontSizeBase = font_size;
 
-    const float ui_scale = (font_size > 20.0f) ? (font_size / 20.0f) : 1.0f;
+    const float ui_scale = (font_size > 26.0f) ? (font_size / 26.0f) : 1.0f;
     style.ScaleAllSizes(ui_scale);
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
@@ -547,9 +568,11 @@ int main(int argc, char **argv)
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoSavedSettings);
 
+        ImGui::PushFont(nullptr, font_size * 1.12f);
         ImGui::PushStyleColor(ImGuiCol_Text, theme.heading);
         ImGui::TextWrapped("%s", cfg.question.c_str());
         ImGui::PopStyleColor();
+        ImGui::PopFont();
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();

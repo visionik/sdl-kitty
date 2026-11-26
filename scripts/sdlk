@@ -303,8 +303,9 @@ run_imgui_ask() {
   local vp_row="${SDL_KITTY_VIEWPORT_ROW:-3}"
   local vp_w="${SDL_KITTY_VIEWPORT_W:-$((cols - 4))}"
   local vp_h="${SDL_KITTY_VIEWPORT_H:-$((8 + extra_rows + nopt * 2))}"
-  [ "$vp_w" -lt 36 ] && vp_w=36
-  [ "$vp_h" -lt 12 ] && vp_h=12
+  [ -z "${SDL_KITTY_VIEWPORT_W:-}" ] && [ "$vp_w" -gt 96 ] && vp_w=96
+  [ "$vp_w" -lt 40 ] && vp_w=40
+  [ "$vp_h" -lt 14 ] && vp_h=14
   if [ "$((vp_col + vp_w - 1))" -gt "$cols" ] && [ "$cols" -gt "$vp_col" ]; then
     vp_w=$((cols - vp_col + 1))
   fi
@@ -314,10 +315,16 @@ run_imgui_ask() {
 
   local fb_w=$((vp_w * 16))
   local fb_h=$((vp_h * 32))
+  if [ "$fb_w" -gt 1600 ]; then
+    fb_h=$((fb_h * 1600 / fb_w))
+    fb_w=1600
+  fi
+  if [ "$fb_h" -gt 960 ]; then
+    fb_w=$((fb_w * 960 / fb_h))
+    fb_h=960
+  fi
   [ "$fb_w" -lt 640 ] && fb_w=640
-  [ "$fb_h" -lt 420 ] && fb_h=420
-  [ "$fb_w" -gt 1600 ] && fb_w=1600
-  [ "$fb_h" -gt 960 ] && fb_h=960
+  [ "$fb_h" -lt 448 ] && fb_h=448
 
   local err_log="${SDL_KITTY_ASK_ERR:-/tmp/sdlk-ask.err}"
   local mode_label="single"

@@ -75,8 +75,9 @@ VP_COL="${SDL_KITTY_VIEWPORT_COL:-3}"
 VP_ROW="${SDL_KITTY_VIEWPORT_ROW:-3}"
 VP_W="${SDL_KITTY_VIEWPORT_W:-$((COLS - 4))}"
 VP_H="${SDL_KITTY_VIEWPORT_H:-$((6 + NOPT + 3))}"
-if (( VP_W < 36 )); then VP_W=36; fi
-if (( VP_H < 10 )); then VP_H=10; fi
+if [[ -z "${SDL_KITTY_VIEWPORT_W:-}" ]] && (( VP_W > 96 )); then VP_W=96; fi
+if (( VP_W < 40 )); then VP_W=40; fi
+if (( VP_H < 12 )); then VP_H=12; fi
 if (( VP_COL + VP_W - 1 > COLS )) && (( COLS > VP_COL )); then
   VP_W=$((COLS - VP_COL + 1))
 fi
@@ -95,10 +96,10 @@ fi
 
 FB_W=$((VP_W * 16))
 FB_H=$((VP_H * 32))
+if (( FB_W > 1600 )); then FB_H=$((FB_H * 1600 / FB_W)); FB_W=1600; fi
+if (( FB_H > 960 )); then FB_W=$((FB_W * 960 / FB_H)); FB_H=960; fi
 if (( FB_W < 640 )); then FB_W=640; fi
-if (( FB_H < 420 )); then FB_H=420; fi
-if (( FB_W > 1600 )); then FB_W=1600; fi
-if (( FB_H > 960 )); then FB_H=960; fi
+if (( FB_H < 448 )); then FB_H=448; fi
 
 export SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}"
 export SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}"
