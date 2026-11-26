@@ -182,3 +182,111 @@ Machine: Apple Silicon ARM64 macOS, Release build (`-DCMAKE_BUILD_TYPE=Release`)
   - `e2e.static_720p`: `0.074` → **`0.073 ms/f`**
 - **Tests:** 5/5 `^kitty_` ctest passed.
 - **Decision:** **KEPT**.
+
+## Pass 13 (ODD — Detail) — Zero-`snprintf` APC header formatting & debug-gated `SDL_GetTicksNS`
+- **Target:** `SDL_kittygraphics.c`, `SDL_kittyprobe.c`.
+- **Change:** Replaced `SDL_snprintf` on `a=f` / `a=T` / continuation headers with inline decimal formatting and gated `SDL_GetTicksNS()` behind `KITTY_DebugEnabled()`.
+- **Results:** Within E2E PTY noise floor (`imgui`: `0.052` → `0.052 ms/f`, `mame_sparse`: `0.131` → `0.132 ms/f`, `fireworks`: `0.092` → `0.102 ms/f`). Header formatting is <1% of frame time.
+- **Tests:** 5/5 `^kitty_` ctest passed.
+- **Decision:** **REVERTED** (strictly keeping only measurable wins; extra formatting code not justified by sub-1% gain).
+
+## Pass 14 (EVEN — High-Level) — Frame-coalesced multi-rect `a=f` batching (`tx_frame_buf`)
+- **Target:** `SDL_kittygraphics.c`, `SDL_kittyframebuffer.c`, `SDL_kittyvideo.h`.
+- **Change:** Buffered all multi-rect `a=f` APCs into a single grow-only `tx_frame_buf` and flushed once per frame instead of `writev()` per rect.
+- **Results:** **Regressed** multi-rect E2E latency: `e2e.imgui_dirty_720p_af_z` `0.052` → `0.066 ms/f` (+27%), `e2e.fireworks_rgba_720p_af` `0.092` → `0.127 ms/f` (+38%).
+- **Root cause:** Real PTY kernel buffers are small (~1 KB on macOS). Writing each rect immediately pipelines zlib compression of rect `N+1` on the app core with PTY drain of rect `N` by the terminal reader; deferring all writes until the end serializes compression and PTY backpressure.
+- **Tests:** 5/5 `^kitty_` ctest passed.
+- **Decision:** **REVERTED** (great empirical catch from real-PTY benchmarking).
+
+## Pass 15 (ODD — Detail) — Tune `deflateInit2` `windowBits` & `memLevel`
+- **Target:** `KITTY_ZlibCompress` in `SDL_kittygraphics.c`.
+- **Change:** Tested `windowBits=13, memLevel=9` and `windowBits=15, memLevel=9` vs baseline `windowBits=15, memLevel=8`.
+- **Results:** **Regressed** on macOS Apple `libz.1.dylib`:
+  - `15, 8` (baseline): `scroll_720p_zlib` `2.35 ms/f`, `1080p_zlib` `5.23 ms/f`.
+  - `15, 9`: `2.97 ms/f` (+26%), `6.65 ms/f` (+27%).
+  - `13, 9`: `6.74 ms/f` (+187%), `15.12 ms/f` (+189%).
+- **Root cause:** Apple's system `libz` engages its SIMD/accelerated deflate fast path specifically for standard `windowBits=15, memLevel=8`.
+- **Decision:** **REVERTED** (valuable platform insight; keep standard `15, 8`).
+
+## Pass 16 (EVEN — High-Level) — Parallel 4-slice RFC 1950 `o=z` zlib compression (`dispatch_apply_f` + `adler32_combine`)
+- **Target:** `KITTY_ZlibCompress` in `SDL_kittygraphics.c`, `SDL_kittyvideo.h`.
+- **Change:** For large frames (`>= 256 KB`) on macOS, split the payload into 4 slices compressed concurrently via GCD (`dispatch_apply_f`) using persistent raw-deflate (`-15`, `Z_BEST_SPEED`) streams with `Z_SYNC_FLUSH` (slices 0..2) + `Z_FINISH` (slice 3), wrapped with standard RFC 1950 header (`0x78 0x01`) and `adler32_combine()` trailer. Verified bit-for-bit exact decompression via standard `zlib::uncompress()` over all 2,764,800 RGB24 bytes from a live PTY capture (`uncompress=0, match=1`).
+- **Results:**
+  - `e2e.mame_scroll_720p_zlib`: `2.355` → **`0.871 ms/f`** (**2.70× faster**, identical `43.1 KB/f` wire!)
+  - `e2e.mame_scroll_1080p_zlib`: `5.236` → **`1.914 ms/f`** (**2.74× faster**, `94.0` → `94.1 KB/f`, +0.1% wire!)
+  - 1080p full-screen scrolling is now **8.8× faster than Pass 0** (`16.881` → `1.914 ms/f`).
+- **Tests:** 5/5 `^kitty_` ctest passed + standalone `uncompress()` bit-exact check passed.
+- **Decision:** **KEPT**.
+
+## Pass 17 (ODD — Detail) — Scale parallel RFC 1950 zlib up to 8 slices (CPU-bounded)
+- **Target:** `KITTY_ParallelZlibCtx` / `KITTY_ZlibCompress` in `SDL_kittygraphics.c`.
+- **Change:** Scaled max parallel slices from 4 to `min(8, ncpu)` (`8` slices for payloads `>= 512 KB`, `4` for `128..512 KB`). Re-verified bit-exact RFC 1950 `uncompress()` over all 2,764,800 bytes (`uncompress=0, match=1`).
+- **Results:**
+  - `e2e.mame_scroll_720p_zlib`: `0.871` → **`0.711 ms/f`** (**-18.4%**, `43.2 KB/f`, **10.5× vs Pass 0!**)
+  - `e2e.mame_scroll_1080p_zlib`: `1.914` → **`1.651 ms/f`** (**-13.7%**, `94.1 KB/f`, **10.2× vs Pass 0!**)
+- **Tests:** 5/5 `^kitty_` ctest passed + `verify_pz` bit-exact passed.
+- **Decision:** **KEPT**.
+
+## Pass 18 (EVEN — High-Level) — Streaming L1/L2-cached Base64 for large direct APC payloads
+- **Target:** `KITTY_TransmitDirectPayload` in `SDL_kittygraphics.c`.
+- **Change:** For large direct payloads (`b64_total > 192 KB`), replaced full-frame multi-MB Base64 materialization with 48 KB raw → 64 KB Base64 streaming slices written via `writev()` within exact `chunk_cap` APC boundaries. Overlaps Base64 encoding with PTY drain, keeps Base64 inside L1/L2 cache, and eliminates multi-MB `tx_b64_buf` allocations. Verified byte-exact via `verify_pz` (`b64=767664`, `uncompress=0, match=1`).
+- **Results:**
+  - `e2e.mame_scroll_720p_direct`: `21.843` → **`21.282 ms/f`** (**-2.6% / -561 us**, plus ~3.6–11 MB less peak RAM)
+  - `e2e.mame_scroll_1080p_zlib`: `1.651` → **`1.644 ms/f`**
+  - `e2e.mame_2corner_720p_af_z`: `0.115` → **`0.113 ms/f`**
+- **Tests:** 5/5 `^kitty_` ctest passed + `verify_pz` bit-exact passed.
+- **Decision:** **KEPT**.
+
+## Pass 19 (ODD — Detail) — 64-pixel unrolled NEON clean-row scan in fused convert+diff
+- **Target:** `KITTY_ConvertAndTileDiffRects` in `SDL_kittyrect.c`.
+- **Change:** Added a 64-pixel/iteration (4×16) NEON clean-row fast path when `dirty_in_band == 0`, reducing horizontal `vmaxvq_u32` reductions and branches by 4× and eliminating inner tile-loop overhead on unchanged rows.
+- **Results:**
+  - `e2e.static_720p`: `0.079` → **`0.062 ms/f`** (**-21.5%**, 62 us for full 720p scan!)
+  - `e2e.mame_sparse_720p_af_z`: `0.130` → **`0.120 ms/f`** (**-7.7%**)
+  - `e2e.mame_scroll_1080p_zlib`: `1.644` → **`1.622 ms/f`** (-1.3%)
+- **Tests:** 5/5 `^kitty_` ctest passed.
+- **Decision:** **KEPT**.
+
+## Pass 20 (EVEN — High-Level) — Parallel 4-worker GCD fused convert+tile-diff (`KITTY_ConvertAndTileDiffRects`)
+- **Target:** `KITTY_ConvertAndTileDiffRects` in `SDL_kittyrect.c`.
+- **Change:** Extracted `KITTY_ConvertAndDiffBand()` and parallelized band scanning across 4 GCD workers (`dispatch_apply_f`) on macOS for surfaces `>= 640×480`, merging dirty runs sequentially after join.
+- **Results:**
+  - `e2e.static_720p`: `0.062` → **`0.029 ms/f`** (**2.14× faster** — 29 us for full 720p!)
+  - `e2e.mame_sparse_720p_af_z`: `0.120` → **`0.082 ms/f`** (**-31.7%**, **64.0× vs Pass 0!**)
+  - `e2e.mame_2corner_720p_af_z`: `0.115` → **`0.065 ms/f`** (**-43.5%**, **115.6× vs Pass 0!**)
+  - `e2e.mame_scroll_720p_zlib`: `0.712` → **`0.679 ms/f`** (**-4.6%**)
+  - `e2e.mame_scroll_1080p_zlib`: `1.622` → **`1.562 ms/f`** (**-3.7%**)
+- **Tests:** 5/5 `^kitty_` ctest passed.
+- **Decision:** **KEPT**.
+
+## Pass 21 (ODD — Detail) — 128-byte cache-line aligned 12-slice parallel zlib (eliminates Apple Silicon false sharing)
+- **Target:** `KITTY_ParallelZlibCtx` / `KITTY_ParallelZlibSlice` in `SDL_kittygraphics.c`.
+- **Change:** Grouped per-worker `z_stream` (112 B) and slice metadata into a `128`-byte-aligned struct (matching Apple Silicon's 128 B L1 cache line so adjacent workers never false-share `z_stream` writes during `deflate()`), and scaled slice count up to `min(12, ncpu)` for `>= 1.5 MB` frames. Re-verified bit-exact RFC 1950 via `verify_pz` (`uncompress=0, match=1`).
+- **Results:**
+  - `e2e.mame_scroll_720p_zlib`: `0.679` → **`0.641 ms/f`** (**-5.6%**, **11.7× vs Pass 0!**)
+  - `e2e.mame_scroll_1080p_zlib`: `1.562` → **`1.346 ms/f`** (**-13.8%**, **12.5× vs Pass 0!**)
+- **Tests:** 5/5 `^kitty_` ctest passed + `verify_pz` bit-exact passed.
+- **Decision:** **KEPT**.
+
+## Pass 22 (EVEN — High-Level) — Exact vertical scanline trimming in fused convert+tile-diff
+- **Target:** `KITTY_ConvertAndDiffBand` / `KITTY_ConvertAndTileDiffRects` in `SDL_kittyrect.c`.
+- **Change:** Tracked per-tile exact changed scanline range `(y0, y1_excl)` in a compact `Uint16` per tile during the fused convert+diff pass, tightening emitted sparse rects vertically to only the changed rows instead of padded 32-row tile boundaries (while preserving the write-only fast path when an entire band is dirty).
+- **Results:**
+  - `e2e.mame_sparse_720p_af_z`: `0.084` → **`0.080 ms/f`** (-4.8%), wire `2.7` → **`2.3 KB/f`** (**-14.8% wire!**)
+  - `e2e.mame_2corner_720p_af_z`: wire `1.6` → **`1.5 KB/f`** (**-6.3% wire!**)
+  - `e2e.static_720p`: **`0.029 ms/f`** (zero overhead on static frames).
+- **Tests:** 5/5 `^kitty_` ctest passed.
+- **Decision:** **KEPT**.
+
+## Pass 23 (ODD — Detail) — Manual 2× NEON convert unroll & 6–8 diff workers
+- **Target:** `KITTY_ConvertRowRGB(A)` and `KITTY_ConvertAndTileDiffRects` in `SDL_kittyrect.c`.
+- **Change:** Manually unrolled NEON conversion to 32 px/iter and increased parallel diff workers from 4 to 6 (720p) / 8 (1080p).
+- **Results:** Slight regression (`conv_rgb_720p`: `49.0` → `53.7 us`; `scroll_1080p_zlib`: `1.349` → `1.376 ms/f`; `static_720p`: `0.029` → `0.027 ms/f`). Compiler register allocation on 16 px/iter + 4 GCD workers is already at the memory-bandwidth / dispatch-latency sweet spot.
+- **Decision:** **REVERTED**.
+
+## Pass 24 (EVEN — High-Level) — Adaptive zlib bypass for incompressible / tiny payloads
+- **Target:** `KITTY_TransmitDirectZlib` and `KITTY_TransmitRGBRectEdit` in `SDL_kittygraphics.c`.
+- **Change:** Skip zlib on tiny `a=f` patches (`<= 48 B`) where zlib framing cannot beat raw, and automatically fall back to raw (omitting `o=z`) whenever `compressed_len >= raw_len` so incompressible noisy frames / tiny cursor updates never expand on the wire or waste host `inflate()` CPU.
+- **Results:** Zero overhead on compressible benchmarks (`static_720p`: `0.028 ms/f`, `mame_2corner`: `0.063 ms/f`, `mame_sparse`: `0.081 ms/f`), while strictly bounding worst-case wire bytes to `<= raw_len` on noisy/tiny frames.
+- **Tests:** 5/5 `^kitty_` ctest passed + `verify_pz` bit-exact passed.
+- **Decision:** **KEPT**.

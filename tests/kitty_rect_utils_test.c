@@ -339,6 +339,10 @@ static void test_fused_convert_diff(void)
     out = KITTY_ConvertAndTileDiffRects(surf, scratch, false, 32, 0.45f, rects, 16, &count, &bbox);
     expect_int((int)out, (int)KITTY_DIFF_RECT, "fused 2 corners -> RECT");
     expect_int(count, 2, "fused 2 corners -> 2 rects");
+    expect_int(rects[0].y, 4, "fused trimmed r1.y");
+    expect_int(rects[0].h, 10, "fused trimmed r1.h");
+    expect_int(rects[1].y, 100, "fused trimmed r2.y");
+    expect_int(rects[1].h, 10, "fused trimmed r2.h");
     expect_int(scratch[(4 * 128 + 4) * 3 + 0], 200, "fused updated r1 R");
     expect_int(scratch[(100 * 128 + 100) * 3 + 1], 220, "fused updated r2 G");
 
