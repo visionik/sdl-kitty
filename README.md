@@ -2,13 +2,34 @@
 
 SDL3 video driver that presents through the [Kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
-Run real SDL3 apps inside **Kitty**, **Ghostty**, **WezTerm**, **iTerm2**, or **Rex**:
+Run real SDL3 apps (including **MAME**) inside **Kitty**, **Ghostty**, **WezTerm**, **iTerm2**, or **Rex**:
 
 ```bash
-export SDL_VIDEO_DRIVER=kitty
+curl -fsSL https://raw.githubusercontent.com/visionik/sdl-kitty/main/scripts/install.sh | sh
 ```
 
-This repo is a meta-project: examples, docs, terminal profiles, and an SDL3 submodule (`third_party/SDL` on branch `sdl-kitty-v0`) that contains the driver under `src/video/kitty/`.
+Or via Homebrew tap (once published):
+
+```bash
+brew install visionik/tap/sdl-kitty
+sdlk setup
+```
+
+### Quick try with `sdlk`
+
+The installer drops `sdlk` into your `PATH` (with a private `libSDL3` so it never conflicts with Homebrew or system SDL3), offers to install **MAME** if missing, and lets you pick free legal arcade ROMs directly from [mamedev.org/roms](https://www.mamedev.org/roms/):
+
+```bash
+sdlk                  # interactive launcher (ImGui card inside your terminal)
+sdlk demo             # bundled demos: fireworks, Dear ImGui, mouse_paint, alpha_blit...
+sdlk mame-roms        # download free non-commercial arcade ROMs from mamedev.org
+sdlk mame robby       # play Robby Roto in your terminal (5=coin, 1=start, Esc=quit)
+sdlk ask "Pick?" A B  # inline Dear ImGui radio/checkbox card for shell scripts
+sdlk run ./my-sdl3    # run any SDL3 binary with SDL_VIDEO_DRIVER=kitty
+sdlk doctor           # probe Kitty graphics & keyboard support + MAME linkage
+```
+
+This repo is a meta-project: the `sdlk` CLI, examples, docs, terminal profiles, and an SDL3 submodule (`third_party/SDL` on branch `sdl-kitty-v0`) that contains the driver under `src/video/kitty/`.
 
 ## Status
 

@@ -43,6 +43,26 @@ add_test(NAME kitty_profile_utils_test COMMAND kitty_profile_utils_test)
 set_tests_properties(kitty_profile_utils_test PROPERTIES
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_executable(kitty_perf_bench
+  kitty_perf_bench.c
+  ${KITTY_RECT_SRC})
+target_compile_definitions(kitty_perf_bench PRIVATE KITTY_RECT_STANDALONE=1)
+target_include_directories(kitty_perf_bench PRIVATE
+  "${CMAKE_SOURCE_DIR}/third_party/SDL/src/video/kitty")
+target_link_libraries(kitty_perf_bench PRIVATE SDL3::SDL3)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(kitty_perf_bench PRIVATE util pthread)
+endif()
+
+find_package(ZLIB REQUIRED)
+add_executable(kitty_zlib_roundtrip_test
+  kitty_zlib_roundtrip_test.c)
+target_link_libraries(kitty_zlib_roundtrip_test PRIVATE SDL3::SDL3 ZLIB::ZLIB)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(kitty_zlib_roundtrip_test PRIVATE util pthread)
+endif()
+add_test(NAME kitty_zlib_roundtrip_test COMMAND kitty_zlib_roundtrip_test)
+
 # The compiled-in copy of config/*.toml, and the matrix in docs/terminals.md, must match them.
 find_package(Python3 3.11 COMPONENTS Interpreter)
 if(Python3_FOUND)

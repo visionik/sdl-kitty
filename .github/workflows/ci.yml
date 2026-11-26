@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & Test (${{ matrix.os_name }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            os_name: darwin
+            arch: arm64
+          - runner: ubuntu-24.04
+            os_name: linux
+            arch: x86_64
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies (Linux)
+        if: matrix.os_name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config zlib1g-dev \
+            libasound2-dev libpulse-dev libudev-dev python3
+
+      - name: Install build dependencies (macOS)
+        if: matrix.os_name == 'darwin'
+        run: brew install ninja
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_UNIX_CONSOLE_BUILD=ON \
+            -DSDL_KITTY_RELOCATABLE=ON \
+            -DSDL_KITTY_BUILD_SDL_TESTS=OFF \
+            -DSDL_KITTY_RUNTIME_DEBUG=OFF \
+            -DSDL_KITTY_PERF_ACK=OFF
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Run Kitty test suite
+        run: ctest --test-dir build -R '^kitty_' --output-on-failure
+
+      - name: Verify scripts syntax
+        run: |
+          bash -n scripts/sdlk
+          bash -n scripts/sdl-kitty-ask.sh
+
+      - name: Verify relocatable install
+        run: |
+          cmake --install build --prefix stage/install-check
+          test -x stage/install-check/bin/sdlk
+          test -x stage/install-check/share/sdl-kitty/demos/sdl_kitty_ask

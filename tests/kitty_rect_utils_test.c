@@ -270,6 +270,126 @@ static void test_tile_diff(void)
     free(b);
 }
 
+static void test_tile_diff_rects(void)
+{
+    const int w = 128, h = 128, bpp = 3;
+    Uint8 *a = (Uint8 *)calloc((size_t)w * (size_t)h * (size_t)bpp, 1);
+    Uint8 *b = (Uint8 *)calloc((size_t)w * (size_t)h * (size_t)bpp, 1);
+    SDL_Rect rects[16];
+    SDL_Rect bbox;
+    int count = 0;
+    KITTY_DiffOutcome out;
+
+    expect_true(a && b, "diff rects buffers");
+    out = KITTY_TileDiffRects(a, b, w, h, bpp, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_NONE, "rects identical -> NONE");
+    expect_int(count, 0, "rects count 0");
+
+    /* Opposite corners: 2 disjoint 32x32 tiles (12.5% total area < 45%). */
+    b[0] = 1;
+    b[(127 * w + 127) * bpp] = 2;
+    out = KITTY_TileDiffRects(a, b, w, h, bpp, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_RECT, "2 corners -> RECT");
+    expect_int(count, 2, "2 corners -> 2 rects");
+    expect_int(rects[0].x, 0, "corner0.x");
+    expect_int(rects[0].y, 0, "corner0.y");
+    expect_int(rects[0].w, 32, "corner0.w");
+    expect_int(rects[0].h, 32, "corner0.h");
+    expect_int(rects[1].x, 96, "corner1.x");
+    expect_int(rects[1].y, 96, "corner1.y");
+    expect_int(rects[1].w, 32, "corner1.w");
+    expect_int(rects[1].h, 32, "corner1.h");
+
+    /* Vertical merge: also dirty (0,32) → merges with (0,0) into 32x64. */
+    b[(32 * w + 0) * bpp] = 3;
+    out = KITTY_TileDiffRects(a, b, w, h, bpp, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_RECT, "vertical merge -> RECT");
+    expect_int(count, 2, "vertical merge still 2 rects");
+    expect_int(rects[0].w, 32, "merged0.w");
+    expect_int(rects[0].h, 64, "merged0.h");
+
+    free(a);
+    free(b);
+}
+
+static void test_fused_convert_diff(void)
+{
+    SDL_Surface *surf = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_XRGB8888);
+    Uint8 *scratch = (Uint8 *)calloc(128u * 128u * 3u, 1);
+    SDL_Rect full = { 0, 0, 128, 128 };
+    SDL_Rect r1 = { 4, 4, 10, 10 };
+    SDL_Rect r2 = { 100, 100, 10, 10 };
+    SDL_Rect rects[16];
+    SDL_Rect bbox;
+    int count = 0;
+    KITTY_DiffOutcome out;
+
+    expect_true(surf && scratch, "fused alloc");
+    SDL_FillSurfaceRect(surf, NULL, SDL_MapSurfaceRGB(surf, 10, 20, 30));
+    expect_true(KITTY_ConvertSurfaceRectToRGB(surf, &full, scratch), "seed scratch");
+
+    /* Static frame → NONE */
+    out = KITTY_ConvertAndTileDiffRects(surf, scratch, false, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_NONE, "fused identical -> NONE");
+    expect_int(count, 0, "fused count 0");
+
+    /* Two opposite corners → 2 rects and scratch updated in place */
+    SDL_FillSurfaceRect(surf, &r1, SDL_MapSurfaceRGB(surf, 200, 100, 50));
+    SDL_FillSurfaceRect(surf, &r2, SDL_MapSurfaceRGB(surf, 10, 220, 90));
+    out = KITTY_ConvertAndTileDiffRects(surf, scratch, false, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_RECT, "fused 2 corners -> RECT");
+    expect_int(count, 2, "fused 2 corners -> 2 rects");
+    expect_int(rects[0].x, 4, "fused trimmed r1.x");
+    expect_int(rects[0].y, 4, "fused trimmed r1.y");
+    expect_int(rects[0].w, 10, "fused trimmed r1.w");
+    expect_int(rects[0].h, 10, "fused trimmed r1.h");
+    expect_int(rects[1].x, 100, "fused trimmed r2.x");
+    expect_int(rects[1].y, 100, "fused trimmed r2.y");
+    expect_int(rects[1].w, 10, "fused trimmed r2.w");
+    expect_int(rects[1].h, 10, "fused trimmed r2.h");
+    expect_int(scratch[(4 * 128 + 4) * 3 + 0], 200, "fused updated r1 R");
+    expect_int(scratch[(100 * 128 + 100) * 3 + 1], 220, "fused updated r2 G");
+
+    /* Next identical call → NONE because scratch was updated in-place */
+    out = KITTY_ConvertAndTileDiffRects(surf, scratch, false, 32, 0.45f, rects, 16, &count, &bbox);
+    expect_int((int)out, (int)KITTY_DIFF_NONE, "fused follow-up identical -> NONE");
+
+    /* Per-rect convert-and-check: unchanged rect reports false, modified reports true */
+    {
+        bool chg = true;
+        expect_true(KITTY_ConvertSurfaceRectCheckChanged(surf, &r1, scratch, false, &chg), "rect check ok");
+        expect_true(!chg, "rect check unchanged -> false");
+        SDL_FillSurfaceRect(surf, &r1, SDL_MapSurfaceRGB(surf, 77, 88, 99));
+        expect_true(KITTY_ConvertSurfaceRectCheckChanged(surf, &r1, scratch, false, &chg), "rect check modified ok");
+        expect_true(chg, "rect check modified -> true");
+        expect_int(scratch[(4 * 128 + 4) * 3 + 0], 77, "rect check updated R");
+        expect_true(KITTY_ConvertSurfaceRectCheckChanged(surf, &r1, scratch, false, &chg), "rect check repeat ok");
+        expect_true(!chg, "rect check repeat -> false");
+    }
+
+    /* Fused convert + check + direct pack */
+    {
+        Uint8 packed[10 * 10 * 3];
+        size_t plen = 0;
+        bool chg = true;
+        expect_true(KITTY_ConvertSurfaceRectCheckAndPack(surf, &r1, scratch, packed, sizeof(packed), false, &chg, &plen),
+                    "convert+pack unchanged ok");
+        expect_true(!chg, "convert+pack unchanged -> false");
+        expect_int((int)plen, 300, "convert+pack len 300");
+        SDL_FillSurfaceRect(surf, &r1, SDL_MapSurfaceRGB(surf, 12, 34, 56));
+        expect_true(KITTY_ConvertSurfaceRectCheckAndPack(surf, &r1, scratch, packed, sizeof(packed), false, &chg, &plen),
+                    "convert+pack changed ok");
+        expect_true(chg, "convert+pack changed -> true");
+        expect_int(packed[0], 12, "packed R");
+        expect_int(packed[1], 34, "packed G");
+        expect_int(packed[2], 56, "packed B");
+        expect_int(scratch[(4 * 128 + 4) * 3 + 0], 12, "scratch updated R");
+    }
+
+    free(scratch);
+    SDL_DestroySurface(surf);
+}
+
 static void test_fb_rect_to_place_cells(void)
 {
     SDL_Rect r = { 100, 50, 200, 100 };
@@ -315,8 +435,19 @@ static void test_fnv1a64(void)
     const Uint64 ha = KITTY_Fnv1a64(a, sizeof(a));
     const Uint64 hb = KITTY_Fnv1a64(b, sizeof(b));
     const Uint64 ha2 = KITTY_Fnv1a64(a, sizeof(a));
+    Uint8 big[100];
+    Uint64 fh1, fh2;
+    int i;
     expect_true(ha == ha2, "fnv stable");
     expect_true(ha != hb, "fnv differs on change");
+    for (i = 0; i < 100; ++i) {
+        big[i] = (Uint8)i;
+    }
+    fh1 = KITTY_FastHash64(big, sizeof(big));
+    expect_true(fh1 == KITTY_FastHash64(big, sizeof(big)), "fasthash stable");
+    big[73] ^= 1;
+    fh2 = KITTY_FastHash64(big, sizeof(big));
+    expect_true(fh1 != fh2, "fasthash differs on single bit flip");
 }
 
 static void test_coalesce_rects(void)
@@ -412,6 +543,8 @@ int main(int argc, char **argv)
     test_pack_rgba_rect();
     test_convert_rgba();
     test_tile_diff();
+    test_tile_diff_rects();
+    test_fused_convert_diff();
     test_fb_rect_to_place_cells();
     test_fb_pixel_to_cell_cursor();
     test_fnv1a64();
