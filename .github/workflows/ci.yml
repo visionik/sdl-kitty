@@ -35,12 +35,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build pkg-config zlib1g-dev \
+            cmake ninja-build pkg-config zlib1g-dev libdeflate-dev \
             libasound2-dev libpulse-dev libudev-dev python3
 
       - name: Install build dependencies (macOS)
         if: matrix.os_name == 'darwin'
-        run: brew install ninja
+        run: brew install ninja libdeflate
 
       - name: Configure
         run: |
@@ -70,3 +70,5 @@ jobs:
           cmake --install build --prefix stage/install-check
           test -x stage/install-check/bin/sdlk
           test -x stage/install-check/share/sdl-kitty/demos/sdl_kitty_ask
+          test -x stage/install-check/share/sdl-kitty/demos/sdl_kitty_bench
+          ls stage/install-check/lib/sdl-kitty/libSDL2* stage/install-check/lib/sdl-kitty/libSDL3*

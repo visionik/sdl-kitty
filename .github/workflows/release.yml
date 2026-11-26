@@ -46,12 +46,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build pkg-config zlib1g-dev \
+            cmake ninja-build pkg-config zlib1g-dev libdeflate-dev \
             libasound2-dev libpulse-dev libudev-dev
 
       - name: Install build dependencies (macOS)
         if: matrix.os_name == 'darwin'
-        run: brew install ninja
+        run: brew install ninja libdeflate
 
       - name: Determine release version
         id: meta

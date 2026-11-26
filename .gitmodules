@@ -8,3 +8,6 @@
 [submodule "third_party/Nuklear"]
 	path = third_party/Nuklear
 	url = https://github.com/Immediate-Mode-UI/Nuklear.git
+[submodule "third_party/sdl2-compat"]
+	path = third_party/sdl2-compat
+	url = https://github.com/libsdl-org/sdl2-compat.git

@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(sdl-kitty-meta C CXX)
+if(APPLE)
+  enable_language(OBJC)
+endif()
 
 option(SDL_KITTY_BUILD_EXAMPLES "Build sdl-kitty examples" ON)
 option(SDL_KITTY_BUILD_IMGUI "Build Dear ImGui SDL3+SDL_Renderer example" ON)
 option(SDL_KITTY_BUILD_NUKLEAR "Build Nuklear SDL3+SDL_Renderer demo" ON)
+option(SDL_KITTY_BUILD_SDL2_COMPAT "Build bundled sdl2-compat so sdlk run supports SDL2 apps" ON)
 option(SDL_KITTY_BUILD_SDL_TESTS "Build upstream SDL3 test suite" OFF)
 option(SDL_KITTY_RELOCATABLE "Omit source-tree path for terminals.toml (for packaged installs)" OFF)
 # Compile-time: present/debug stderr logs (SDL_KITTY_DEBUG env). Default OFF for perf.
@@ -22,6 +26,16 @@ set(SDL_TESTS ${SDL_KITTY_BUILD_SDL_TESTS} CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/SDL)
+
+# Optional bundled sdl2-compat: maps SDL2 calls directly onto our Kitty libSDL3
+# so `sdlk run <sdl2-app>` runs existing SDL2 games/emulators in the terminal.
+if(SDL_KITTY_BUILD_SDL2_COMPAT AND EXISTS "${CMAKE_SOURCE_DIR}/third_party/sdl2-compat/CMakeLists.txt")
+  set(SDL2COMPAT_TESTS OFF CACHE BOOL "" FORCE)
+  set(SDL2COMPAT_INSTALL OFF CACHE BOOL "" FORCE)
+  set(SDL2COMPAT_STATIC OFF CACHE BOOL "" FORCE)
+  set(SDL2COMPAT_X11 OFF CACHE BOOL "" FORCE)
+  add_subdirectory(third_party/sdl2-compat)
+endif()
 
 # Both files are compiled into the driver (scripts/update_facts.py). In-tree builds
 # also read the repo's copies at run time, so edits show without regenerating:
@@ -92,6 +106,9 @@ if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(fireworks examples/fireworks.c)
   target_link_libraries(fireworks PRIVATE SDL3::SDL3)
 
+  add_executable(sdl_kitty_bench examples/sdl_kitty_bench.c)
+  target_link_libraries(sdl_kitty_bench PRIVATE SDL3::SDL3)
+
   list(APPEND _sdl_kitty_demo_targets
     checker_keyboard
     key_probe
@@ -106,6 +123,7 @@ if(SDL_KITTY_BUILD_EXAMPLES)
     dirty_rects_demo
     alpha_blit
     fireworks
+    sdl_kitty_bench
   )
 endif()
 
@@ -218,6 +236,12 @@ endforeach()
 
 if(TARGET SDL3-shared)
   install(TARGETS SDL3-shared
+    LIBRARY DESTINATION "${_sdl_kitty_priv_libdir}"
+    RUNTIME DESTINATION "${_sdl_kitty_priv_libdir}"
+  )
+endif()
+if(TARGET SDL2)
+  install(TARGETS SDL2
     LIBRARY DESTINATION "${_sdl_kitty_priv_libdir}"
     RUNTIME DESTINATION "${_sdl_kitty_priv_libdir}"
   )

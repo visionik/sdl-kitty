@@ -30,6 +30,8 @@ PREFIX="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
 
 LIB_PATH=""
 LIB_DIR=""
+LIB2_PATH=""
+LIB2_DIR=""
 FACTS_PATH=""
 PROFILES_PATH=""
 DEMOS_DIR=""
@@ -69,10 +71,25 @@ if [ "$INSTALL_MODE" = "repo" ]; then
   FACTS_PATH="${PREFIX}/config/terminals.toml"
   PROFILES_PATH="${PREFIX}/config/sdl-kitty.toml"
   DEMOS_DIR="${PREFIX}/build"
+  for _c in "${PREFIX}/build/third_party/sdl2-compat/libSDL2-2.0.0.dylib" \
+            "${PREFIX}/build/third_party/sdl2-compat/libSDL2-2.0.so.0"; do
+    if [ -f "$_c" ]; then
+      LIB2_PATH="$_c"
+      LIB2_DIR="$(dirname "$_c")"
+      break
+    fi
+  done
 else
   FACTS_PATH="${PREFIX}/share/sdl-kitty/terminals.toml"
   PROFILES_PATH="${PREFIX}/share/sdl-kitty/sdl-kitty.toml"
   DEMOS_DIR="${PREFIX}/share/sdl-kitty/demos"
+  for _c in "${LIB_DIR}/libSDL2-2.0.0.dylib" "${LIB_DIR}/libSDL2-2.0.so.0"; do
+    if [ -f "$_c" ]; then
+      LIB2_PATH="$_c"
+      LIB2_DIR="$LIB_DIR"
+      break
+    fi
+  done
 fi
 
 DATA_DIR="${SDLK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sdl-kitty}"
@@ -241,17 +258,30 @@ require_lib() {
 export_sdl_env() {
   require_lib
   export SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}"
+  export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-kitty}"
   export SDL3_DYNAMIC_API="${SDL3_DYNAMIC_API:-$LIB_PATH}"
+  export SDL2COMPAT_SDL3_LIBRARY="${SDL2COMPAT_SDL3_LIBRARY:-$LIB_PATH}"
+  if [ -z "${SDL_DYNAMIC_API:-}" ] && [ -n "${LIB2_PATH:-}" ] && [ -f "$LIB2_PATH" ]; then
+    export SDL_DYNAMIC_API="$LIB2_PATH"
+  fi
   if [ -z "${SDL_KITTY_FACTS:-}" ] && [ -f "$FACTS_PATH" ]; then
     export SDL_KITTY_FACTS="$FACTS_PATH"
   fi
-  if [ -z "${SDL_KITTY_PROFILES:-}" ] && [ -f "$PROFILES_PATH" ]; then
-    export SDL_KITTY_PROFILES="$PROFILES_PATH"
+  if [ -z "${SDL_KITTY_PROFILES:-}" ]; then
+    if [ -f "${HOME}/.config/sdl-kitty/sdl-kitty.toml" ]; then
+      export SDL_KITTY_PROFILES="${HOME}/.config/sdl-kitty/sdl-kitty.toml"
+    elif [ -f "$PROFILES_PATH" ]; then
+      export SDL_KITTY_PROFILES="$PROFILES_PATH"
+    fi
+  fi
+  local lib_paths="$LIB_DIR"
+  if [ -n "${LIB2_DIR:-}" ] && [ "$LIB2_DIR" != "$LIB_DIR" ]; then
+    lib_paths="${LIB_DIR}:${LIB2_DIR}"
   fi
   if [ "$(uname -s)" = "Darwin" ]; then
-    export DYLD_LIBRARY_PATH="${LIB_DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+    export DYLD_LIBRARY_PATH="${lib_paths}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
   else
-    export LD_LIBRARY_PATH="${LIB_DIR}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${lib_paths}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   fi
 }
 
@@ -1234,7 +1264,7 @@ cmd_mame() {
 
   local mame_overlay="${SDL_KITTY_OVERLAY:-}"
   if [ -z "${SDLK_QUIET:-}" ] && [ -z "$mame_overlay" ] && is_interactive_tty; then
-    mame_overlay="pos=bottom;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;text=5=Coin · 1=Start · Arrows=Move · Z/X=Fire\nTab=Menu · F1=Toggle Help · Esc=Quit"
+    mame_overlay="pos=bottom;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;text=5=Coin · 1=Start · Arrows=Move · Z/X=Fire\nTab=Menu · F1=Help · F10=PNG · F12=HUD · Esc=Quit"
   fi
 
   export_sdl_env
@@ -1442,6 +1472,11 @@ cmd_doctor() {
     ok "libSDL3:  ${LIB_PATH}"
   else
     err "libSDL3:  MISSING (expected under ${PREFIX}/lib/sdl-kitty)"
+  fi
+  if [ -n "$LIB2_PATH" ] && [ -f "$LIB2_PATH" ]; then
+    ok "libSDL2:  ${LIB2_PATH} (sdl2-compat)"
+  else
+    info "libSDL2:  not bundled (SDL3 apps only)"
   fi
   if [ -f "$FACTS_PATH" ]; then
     ok "Facts:    ${FACTS_PATH}"
@@ -1691,9 +1726,243 @@ cmd_uninstall() {
 # ---------------------------------------------------------------------------
 # Bare `sdlk` (interactive launcher if Kitty TTY, else help)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# sdlk bench — real-terminal benchmark + auto-tune
+# ---------------------------------------------------------------------------
+cmd_bench() {
+  local frames=60 apply=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --frames|-n) frames="$2"; shift 2 ;;
+      --quick)     frames=30; shift ;;
+      --apply)     apply=1; shift ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: sdlk bench [--frames N] [--quick] [--apply]
+
+Benchmark Kitty graphics performance in your live terminal across transport
+modes (sparse a=f+zlib, full-frame zlib levels 3 & 4, and SHM/direct).
+  --apply   Write the fastest tuned settings to ~/.config/sdl-kitty/env.sh
+EOF
+        return 0
+        ;;
+      *) err "Unknown option for bench: $1"; return 2 ;;
+    esac
+  done
+
+  local bench_bin="${DEMOS_DIR}/sdl_kitty_bench"
+  if [ ! -x "$bench_bin" ]; then
+    err "sdl_kitty_bench not found in ${DEMOS_DIR}"
+    return 2
+  fi
+
+  local term_kind
+  term_kind="$(detect_terminal)"
+  printf '%ssdl-kitty live terminal benchmark%s (%s%s, %s frames/mode)\n\n' \
+    "$C_BOLD" "$C_RESET" "$term_kind" "${SSH_CONNECTION:+ · SSH}" "$frames"
+
+  local modes=(
+    "sparse-af-z|sparse|zlib|1|1"
+    "full-zlib-3|scroll|zlib|3|1"
+    "full-zlib-4|scroll|zlib|4|1"
+    "full-shm|scroll|shm|1|0"
+  )
+  local best_full_name="" best_full_fps="0" best_tx="zlib" best_zl="3"
+  local rows=()
+
+  local entry label wl tx zl afz out line fps med p95 dim
+  for entry in "${modes[@]}"; do
+    IFS='|' read -r label wl tx zl afz <<< "$entry"
+    out="$(
+      export_sdl_env
+      export SDL_KITTY_TRANSMIT="$tx"
+      export SDL_KITTY_ZLIB_LEVEL="$zl"
+      export SDL_KITTY_AF_ZLIB="$afz"
+      export SDL_KITTY_MOUSE=0
+      "$bench_bin" --workload "$wl" --frames "$frames" 2>&1 >/dev/tty
+    )" || true
+    line="$(printf '%s\n' "$out" | grep '^BENCH_OK ' | tail -n 1 || true)"
+    if [ -n "$line" ]; then
+      fps="$(printf '%s' "$line" | sed -n 's/.*fps=\([^ ]*\).*/\1/p')"
+      med="$(printf '%s' "$line" | sed -n 's/.*med_ms=\([^ ]*\).*/\1/p')"
+      p95="$(printf '%s' "$line" | sed -n 's/.*p95_ms=\([^ ]*\).*/\1/p')"
+      dim="$(printf '%s' "$line" | sed -n 's/.*w=\([^ ]*\) h=\([^ ]*\).*/\1x\2/p')"
+      rows+=("${label}|${dim}|${fps}|${med}|${p95}|${tx}|${zl}")
+      if [ "$wl" = "scroll" ]; then
+        if awk "BEGIN{exit !(${fps:-0} > ${best_full_fps:-0})}" 2>/dev/null; then
+          best_full_fps="$fps"
+          best_full_name="$label"
+          best_tx="$tx"
+          best_zl="$zl"
+        fi
+      fi
+    else
+      rows+=("${label}|-|n/a|-|-|${tx}|${zl}")
+    fi
+  done
+
+  printf '  %-14s  %-10s  %8s  %10s  %10s\n' "MODE" "RES" "FPS" "MEDIAN" "P95"
+  printf '  %-14s  %-10s  %8s  %10s  %10s\n' "--------------" "----------" "--------" "----------" "----------"
+  local r tag
+  for r in "${rows[@]}"; do
+    IFS='|' read -r label dim fps med p95 tx zl <<< "$r"
+    tag=""
+    [ "$label" = "$best_full_name" ] && tag=" ${C_GREEN}★ fastest full-frame${C_RESET}"
+    if [ "$fps" = "n/a" ]; then
+      printf '  %-14s  %-10s  %8s  %10s  %10s\n' "$label" "-" "n/a" "-" "-"
+    else
+      printf '  %-14s  %-10s  %8s  %8s ms  %8s ms%s\n' "$label" "$dim" "$fps" "$med" "$p95" "$tag"
+    fi
+  done
+
+  if [ -n "$best_full_name" ]; then
+    printf '\n'
+    ok "Recommended full-frame config for ${term_kind}: SDL_KITTY_TRANSMIT=${best_tx} SDL_KITTY_ZLIB_LEVEL=${best_zl}"
+    if [ "$apply" -eq 1 ]; then
+      local cfg_dir="${HOME}/.config/sdl-kitty"
+      mkdir -p "$cfg_dir"
+      cat > "${cfg_dir}/env.sh" <<EOF
+# Auto-tuned by sdlk bench for ${term_kind}
+export SDL_KITTY_TRANSMIT="${best_tx}"
+export SDL_KITTY_ZLIB_LEVEL="${best_zl}"
+EOF
+      ok "Saved to ${cfg_dir}/env.sh (source it in your shell profile)"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# sdlk upgrade — self-update from GitHub Releases with SHA256SUMS verification
+# ---------------------------------------------------------------------------
+cmd_upgrade() {
+  local check_only=0 force=0 target_tag=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --check)     check_only=1; shift ;;
+      --force)     force=1; shift ;;
+      --version)   target_tag="$2"; shift 2 ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: sdlk upgrade [--check] [--version vX.Y.Z] [--force]
+
+Download and verify the latest sdl-kitty release tarball from GitHub Releases
+against SHA256SUMS and update this installation in place.
+EOF
+        return 0
+        ;;
+      *) err "Unknown option for upgrade: $1"; return 2 ;;
+    esac
+  done
+
+  if [ "$INSTALL_MODE" = "repo" ] && [ "$force" -eq 0 ]; then
+    info "Running from source checkout (${PREFIX}). Update with:"
+    printf '  git -C "%s" pull --recurse-submodules && cmake --build "%s/build" -j\n' "$PREFIX" "$PREFIX"
+    return 0
+  fi
+
+  case "$PREFIX" in
+    /opt/homebrew/*|/usr/local/Cellar/*|*/linuxbrew/*)
+      if [ "$force" -eq 0 ]; then
+        info "Installed via Homebrew (${PREFIX}). Update with:"
+        printf '  brew upgrade visionik/tap/sdl-kitty\n'
+        return 0
+      fi
+      ;;
+  esac
+
+  if ! command -v curl >/dev/null 2>&1; then
+    err "curl is required for sdlk upgrade"
+    return 1
+  fi
+
+  if [ -z "$target_tag" ]; then
+    info "Checking latest GitHub Release..."
+    target_tag="$(curl -fsSL "https://api.github.com/repos/visionik/sdl-kitty/releases/latest" \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    if [ -z "$target_tag" ]; then
+      err "Could not determine latest release tag from GitHub"
+      return 1
+    fi
+  fi
+
+  local ver="${target_tag#v}"
+  if [ "$ver" = "$SDLK_VERSION" ] && [ "$force" -eq 0 ]; then
+    ok "sdlk is already up to date (v${SDLK_VERSION})"
+    return 0
+  fi
+
+  printf 'Current: v%s  ->  Latest: %s\n' "$SDLK_VERSION" "$target_tag"
+  if [ "$check_only" -eq 1 ]; then
+    info "Run 'sdlk upgrade' to install ${target_tag}"
+    return 0
+  fi
+
+  local os_name arch_name
+  case "$(uname -s)" in
+    Darwin) os_name="darwin" ;;
+    Linux)  os_name="linux" ;;
+    *) err "Unsupported OS: $(uname -s)"; return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch_name="arm64" ;;
+    x86_64|amd64)  arch_name="x86_64" ;;
+    *) err "Unsupported architecture: $(uname -m)"; return 1 ;;
+  esac
+
+  local archive="sdl-kitty-${ver}-${os_name}-${arch_name}.tar.gz"
+  local base_url="https://github.com/visionik/sdl-kitty/releases/download/${target_tag}"
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' RETURN
+
+  info "Downloading ${archive} and SHA256SUMS..."
+  if ! curl -fsSL "${base_url}/${archive}" -o "${tmpdir}/${archive}" \
+    || ! curl -fsSL "${base_url}/SHA256SUMS" -o "${tmpdir}/SHA256SUMS"; then
+    err "Download failed for ${target_tag} (${archive})"
+    return 1
+  fi
+
+  local expected actual
+  expected="$(awk -v f="$archive" '$2 == f {print $1}' "${tmpdir}/SHA256SUMS")"
+  if [ -z "$expected" ]; then
+    err "Checksum entry for ${archive} missing from SHA256SUMS"
+    return 1
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "${tmpdir}/${archive}" | awk '{print $1}')"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "${tmpdir}/${archive}" | awk '{print $1}')"
+  else
+    err "Neither shasum nor sha256sum found; refusing unverified install"
+    return 1
+  fi
+  if [ "$actual" != "$expected" ]; then
+    err "SHA256 mismatch! expected=${expected} actual=${actual}"
+    return 1
+  fi
+  ok "SHA256 verified (${actual:0:16}...)"
+
+  tar -xzf "${tmpdir}/${archive}" -C "$tmpdir"
+  local unpacked="${tmpdir}/sdl-kitty-${ver}-${os_name}-${arch_name}"
+  if [ ! -x "${unpacked}/bin/sdlk" ]; then
+    err "Unexpected archive layout in ${archive}"
+    return 1
+  fi
+
+  mkdir -p "${PREFIX}/bin" "${PREFIX}/lib/sdl-kitty" "${PREFIX}/share/sdl-kitty"
+  cp -R "${unpacked}/lib/sdl-kitty/." "${PREFIX}/lib/sdl-kitty/"
+  cp -R "${unpacked}/share/sdl-kitty/." "${PREFIX}/share/sdl-kitty/"
+  cp "${unpacked}/bin/sdlk" "${PREFIX}/bin/sdlk.new"
+  chmod +x "${PREFIX}/bin/sdlk.new"
+  mv -f "${PREFIX}/bin/sdlk.new" "${PREFIX}/bin/sdlk"
+
+  ok "Upgraded sdl-kitty in ${PREFIX} to ${target_tag}"
+  "${PREFIX}/bin/sdlk" --version
+}
+
 usage() {
   cat <<EOF
-${C_BOLD}sdlk${C_RESET} ${SDLK_VERSION} — Run SDL3 apps & MAME inside Kitty-capable terminals
+${C_BOLD}sdlk${C_RESET} ${SDLK_VERSION} — Run SDL2/SDL3 apps & MAME inside Kitty-capable terminals
 
 ${C_BOLD}Usage:${C_RESET}
   sdlk                         Interactive launcher (or help if non-TTY)
@@ -1702,17 +1971,25 @@ ${C_BOLD}Usage:${C_RESET}
   sdlk mame-roms [opts|ids]    Download free legal arcade ROMs from mamedev.org
   sdlk ask [--multi] Q A B...  Render an inline Dear ImGui radio/checkbox card
   sdlk progress [opts] Title   Render an inline Dear ImGui progress card (reads stdin)
-  sdlk run <cmd> [args...]     Run any SDL3 binary with the Kitty video driver
-  sdlk doctor                  Probe terminal graphics/keyboard & MAME status
+  sdlk run <cmd> [args...]     Run any SDL3 or SDL2 binary with the Kitty driver
+  sdlk bench [--apply]         Benchmark this terminal & recommend fastest settings
+  sdlk doctor                  Probe terminal graphics/keyboard, SDL2/3 & MAME status
   sdlk setup                   Interactive MAME + free ROMs setup wizard
+  sdlk upgrade [--check]       Update to latest GitHub Release (SHA256 verified)
   sdlk uninstall               Remove local install
   sdlk version                 Print version
+
+${C_BOLD}In-app hotkeys:${C_RESET}
+  F12        Toggle live performance HUD (FPS, sparkline, TX ms, wire KB/f, dirty %)
+  F10        Save lossless PNG screenshot (Shift+F10: record MP4 video)
+  F1         Toggle overlay help (when configured with toggle=F1)
 
 ${C_BOLD}Examples:${C_RESET}
   sdlk demo fireworks
   sdlk mame-roms robby gridlee
   sdlk mame robby
-  sdlk run ./my-sdl3-app
+  sdlk bench --apply
+  sdlk run ./my-sdl-app
 EOF
 }
 
@@ -1766,6 +2043,8 @@ cmd_launcher() {
     ask_args+=(--tab "Tools")
     ask_args+=("Download free MAME ROMs (mamedev.org)")
     actions+=("mame-roms")
+    ask_args+=("Benchmark this terminal (sdlk bench)")
+    actions+=("bench")
     ask_args+=("Run diagnostics (sdlk doctor)")
     actions+=("doctor")
     ask_args+=("Run setup wizard (sdlk setup)")
@@ -1789,6 +2068,11 @@ cmd_launcher() {
         ;;
       mame-roms)
         cmd_mame_roms || true
+        ;;
+      bench)
+        cmd_bench --quick || true
+        printf '\n%sPress Enter to return to sdlk...%s' "$C_DIM" "$C_RESET" >/dev/tty
+        IFS= read -r _ </dev/tty || true
         ;;
       doctor)
         cmd_doctor || true
@@ -1820,8 +2104,10 @@ main() {
     progress)           cmd_progress "$@" ;;
     run)                cmd_run "$@" ;;
     --)                 cmd_run "$@" ;;
+    bench|benchmark)    cmd_bench "$@" ;;
     doctor|check)       cmd_doctor "$@" ;;
     setup|init)         cmd_setup "$@" ;;
+    upgrade|update)     cmd_upgrade "$@" ;;
     uninstall)          cmd_uninstall "$@" ;;
     version|-v|--version) printf 'sdlk %s\n' "$SDLK_VERSION" ;;
     help|-h|--help)     usage ;;

@@ -103,6 +103,7 @@ git submodule update --init --recursive
 | `SDL_KITTY_BUILD_EXAMPLES` | `ON` | Build in-tree demos |
 | `SDL_KITTY_BUILD_IMGUI` | `ON` | Build Dear ImGui `imgui_sdlrenderer3` (needs `third_party/imgui`) |
 | `SDL_KITTY_BUILD_NUKLEAR` | `ON` | Build Nuklear `nuklear_sdl3_renderer` (needs `third_party/Nuklear`) |
+| `SDL_KITTY_BUILD_SDL2_COMPAT` | `ON` | Build bundled `sdl2-compat` (`libSDL2`) so `sdlk run` supports SDL2 apps |
 | `SDL_KITTY_RUNTIME_DEBUG` | `OFF` | Compile present/probe/key/mouse debug logs (`SDL_KITTY_DEBUG=1` at run) |
 | `SDL_KITTY_PERF_ACK` | `OFF` | Compile optional wait for `Gi=;OK` after full `a=T` (`SDL_KITTY_PERF_ACK=1`) |
 
@@ -190,8 +191,11 @@ On macOS, `DYLD_LIBRARY_PATH=…/build/third_party/SDL` also works for apps that
 |---|---|
 | `SDL_VIDEO_DRIVER=kitty` | Select this driver |
 | `SDL_KITTY_TRANSMIT=shm\|zlib\|direct` | Force transmit medium |
-| `SDL_KITTY_ZLIB_LEVEL=1..9` | Override zlib compression level (auto: 3 parallel / 1 serial; auto-picks 4 over `SSH_CONNECTION` for ~2× smaller wire) |
-| `SDL_KITTY_OVERLAY=SPEC` | Translucent HUD toast over any SDL3 app: `pos=bottom\|top\|center\|...;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;file=/path;theme=tokyo\|amber\|nord\|light;text=Line 1\nLine 2` |
+| `SDL_KITTY_ZLIB_LEVEL=1..9` | Override zlib/libdeflate level (auto: 3 parallel / 1 serial; auto-picks 4 over `SSH_CONNECTION`) |
+| `SDL_KITTY_ASYNC_DROP=0\|1` | Non-blocking latest-frame drop mailbox for full `a=T` frames (auto-on over `SSH_CONNECTION`) |
+| `SDL_KITTY_HUD=1\|SPEC` | Show live glassmorphic performance HUD (`F12` toggles anytime; `pos=top-right\|...;theme=tokyo\|amber\|nord\|light`) |
+| `SDL_KITTY_CAPTURE_DIR=DIR` | Output directory for `F10` lossless PNG screenshots & `Shift+F10` MP4 video capture (default `~/Pictures/sdl-kitty`) |
+| `SDL_KITTY_OVERLAY=SPEC` | Translucent Geist-TTF HUD toast over any SDL app: `pos=bottom\|top\|center\|...;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;file=/path;theme=tokyo\|amber\|nord\|light;text=Line 1\nLine 2` |
 | `SDL_KITTY_ASK_THEME` / `FONT_SIZE` / `FONT` | Customize `sdlk ask` & `sdlk progress` (`tokyo`, `catppuccin`, `nord`, `amber`, `light`; default embedded Geist font) |
 | `SDL_KITTY_FB_MAX` / `FB_FIXED` | Cap or fix framebuffer size |
 | `SDL_KITTY_PLACE_ASPECT=1` | Letterbox the stretched FB in the pane, keeping its aspect ratio |

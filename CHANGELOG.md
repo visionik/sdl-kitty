@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Performance
+- **x86_64 SSSE3 / AVX2 SIMD parity:** runtime-dispatched (`__attribute__((target(...)))` + `__builtin_cpu_supports`) vectorized Base64, RGB/RGBA pixel swizzle, clean-row diff, and 128B/iter `KITTY_FindFirstDiff` on Intel/AMD x86_64 macOS & Linux while keeping baseline x86-64 binary portability.
+- **Optional `libdeflate` fast backend:** statically links `libdeflate.a` when available (enabled in CI & release builds, graceful fallback to system `zlib`), speeding up `a=f` dirty rects & serial deflate by ~22% while cutting wire bytes up to 27% (e.g. `fireworks_rgba` 0.052 ms/f, `imgui_dirty` 0.038 ms/f).
+- **Non-blocking async latest-frame drop (`SDL_KITTY_ASYNC_DROP=1` / `SDL_KITTY_ASYNC=drop`, auto-on over `SSH_CONNECTION`):** swaps newest full `a=T` frames into a pending mailbox instead of stalling the app loop on slow WAN/SSH drains (never drops incremental `a=f` edits).
+- **Background POSIX SHM slot pool (`KITTY_ShmPool`):** pre-creates, `ftruncate`s, and `mmap`s the next unique SHM buffer off the main thread and retires `munmap`/`close` asynchronously, while submitting SHM APCs through the async writer.
+
+### Added
+- **Live glassmorphic performance HUD (`SDL_KITTY_HUD=1` or `F12` toggle):** embedded **Geist-Regular** TTF typography (`stb_truetype` + zlib), glowing FPS status orb, 96-sample anti-aliased frame-time & TX sparkline with vertical gradient fill & 60 Hz reference line, transport badge (`SHM`, `A=F · ZLIB`, `ZLIB`, `DIRECT`, drop counter), `TX TIME`, `WIRE KB/f · MB/s`, and gradient `DIRTY %` bar (`tokyo`, `amber`, `nord`, `light` themes).
+- **Retina-sharp overlay toasts:** upgraded `SDL_KITTY_OVERLAY` to render with embedded `Geist-Regular` TTF + glassmorphic SDF cards with soft drop shadows and top specular sheen.
+- **Built-in lossless PNG screenshot (`F10`) & live MP4 video capture (`Shift+F10`):** zero-dep PNG encoder (Sub filter + `libdeflate`/`zlib` + CRC32) saving clean game frames to `SDL_KITTY_CAPTURE_DIR` (default `~/Pictures/sdl-kitty`) with transient toast feedback; `Shift+F10` pipes raw RGB24 to `ffmpeg` (`.mp4`, or PNG burst fallback) with a pulsing crimson `● REC` pill.
+- **OSC 52 terminal clipboard:** `SDL_SetClipboardText` / `SDL_GetClipboardText` / `SDL_HasClipboardText` emit & query OSC 52 (`\033]52;c;...`) so copy/paste works seamlessly in SDL/ImGui apps even over SSH.
+- **Bundled `sdl2-compat` (`third_party/sdl2-compat`):** installs `libSDL2-2.0` next to `libSDL3` in `lib/sdl-kitty/` and auto-configures `SDL_DYNAMIC_API` + `SDL2COMPAT_SDL3_LIBRARY` + `SDL_VIDEODRIVER=kitty` so `sdlk run` runs existing **SDL2** apps & games in the terminal with zero recompilation.
+- **`sdlk bench [--quick] [--apply]`** (backed by `sdl_kitty_bench`): benchmarks your live terminal across transport modes and recommends/saves the fastest settings.
+- **`sdlk upgrade [--check] [--version vX.Y.Z]`:** self-updates tarball installs from GitHub Releases with strict `SHA256SUMS` verification.
+
 ## [0.5.0] — 2026-11-26
 
 ### Performance (40-pass optimization campaign — see `docs/perf-journal.md`)
