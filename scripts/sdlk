@@ -823,7 +823,7 @@ EOF
       mark=""
       [ -f "${ROMS_DIR}/${id}.zip" ] && mark=" (installed)"
       ids+=("$id")
-      ask_args+=("${title} [${id}]${mark}")
+      ask_args+=("${title}${mark}")
     done
 
     ui_ask_tabbed multi "Select free mamedev.org ROMs (non-commercial use):" "${ask_args[@]}"
@@ -1488,11 +1488,7 @@ cmd_launcher() {
   ask_args+=(--tab "MAME")
   for r in $(installed_roms); do
     title="$(rom_title "$r")"
-    if [ "$title" != "$r" ]; then
-      ask_args+=("${title} [${r}]")
-    else
-      ask_args+=("${r}")
-    fi
+    ask_args+=("${title}")
     actions+=("mame:${r}")
     rom_count=$((rom_count + 1))
   done

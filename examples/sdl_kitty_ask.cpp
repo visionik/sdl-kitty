@@ -618,7 +618,7 @@ int main(int argc, char **argv)
                     bool val = selected[(size_t)gi];
                     ImGui::PushID(gi);
                     char label[280];
-                    std::snprintf(label, sizeof(label), "[%d] %s",
+                    std::snprintf(label, sizeof(label), "%d. %s",
                                   j + 1, cfg.options[(size_t)gi].c_str());
                     if (ImGui::Checkbox(label, &val)) {
                         selected[(size_t)gi] = val;
@@ -630,7 +630,7 @@ int main(int argc, char **argv)
                     const int gi = tab.indices[(size_t)j];
                     ImGui::PushID(gi);
                     char label[280];
-                    std::snprintf(label, sizeof(label), "[%d] %s",
+                    std::snprintf(label, sizeof(label), "%d. %s",
                                   j + 1, cfg.options[(size_t)gi].c_str());
                     if (ImGui::RadioButton(label, &radio, gi)) {
                         /* radio updated */
