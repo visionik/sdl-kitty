@@ -45,6 +45,7 @@ the version is unknown. `SDL_KITTY_DEBUG=1` logs
    | `kitty.max_escape_bytes` | `apc_chunk_bytes` = it minus 256 (header and ST) |
    | `kitty.shm = false` | `prefer_direct = true` |
    | `kitty.frame_edit = false` | skip the `a=f` probe; `direct_af_when_shm = false` |
+   | `kitty.frame_edit_zlib` | `af_zlib` |
    | `keyboard.kitty_protocol_config` | the warning when `CSI ? u` goes unanswered |
 
 5. `SDL_KITTY_*` environment variables, at their call sites.
@@ -103,6 +104,7 @@ aren't in terminals.toml.
 | `max_direct_bytes` | int | Refuse direct a=T / a=f above this raw size |
 | `af_max_coverage` | float | Skip union a=f when dirty coverage ≥ this (env: `SDL_KITTY_AF_MAX_COVERAGE`) |
 | `af_max_pixels` | int | Skip a=f when dirty px ≥ this (also per-rect multi-a=f cap) |
+| `af_zlib` | bool | Compress `a=f` edits (`o=z`). Used when `kitty.frame_edit_zlib` is unknown (env: `SDL_KITTY_AF_ZLIB=0`/`1`). The window property `SDL.window.kitty.af_zlib` says what was chosen. |
 | `keys_on_stdin` | bool | Read keyboard from stdin when it is a tty |
 | `silent_af_ok` | bool | a=f probe: silence counts as success. Used when `kitty.frame_edit_reply` is unknown. |
 | `ignore_ioctl_pixels` | bool | Ignore `TIOCGWINSZ` xpixel/ypixel. Used when `window.ioctl_pixels` is unknown. |
