@@ -810,6 +810,38 @@ int main(int argc, char **argv)
             ImGui::Separator();
             ImGui::Spacing();
 
+            const float anim_t = (float)SDL_GetTicks() / 1000.0f;
+            ImDrawList *win_dl = ImGui::GetWindowDrawList();
+
+            auto draw_bar_shimmer = [&](float frac, float phase_offset, float speed_hz) {
+                if (finished) {
+                    return;
+                }
+                const ImVec2 bmin = ImGui::GetItemRectMin();
+                const ImVec2 bmax = ImGui::GetItemRectMax();
+                const float bw = bmax.x - bmin.x;
+                if (bw <= 4.0f) {
+                    return;
+                }
+                const float cycle = std::fmod(anim_t * speed_hz + phase_offset, 1.0f);
+                const float clip_right = (frac > 0.01f) ? (bmin.x + bw * frac) : bmax.x;
+                const float band_w = bw * 0.28f;
+                const float cx = (bmin.x - band_w) + cycle * (bw + band_w * 2.0f);
+                const float peak_a = (frac > 0.01f) ? 0.28f : 0.14f;
+                const ImU32 c_edge = IM_COL32(255, 255, 255, 0);
+                const ImU32 c_mid = IM_COL32(255, 255, 255, (int)(peak_a * 255.0f));
+                win_dl->PushClipRect(bmin, ImVec2(clip_right, bmax.y), true);
+                win_dl->AddRectFilledMultiColor(
+                    ImVec2(cx - band_w * 0.5f, bmin.y),
+                    ImVec2(cx, bmax.y),
+                    c_edge, c_mid, c_mid, c_edge);
+                win_dl->AddRectFilledMultiColor(
+                    ImVec2(cx, bmin.y),
+                    ImVec2(cx + band_w * 0.5f, bmax.y),
+                    c_mid, c_edge, c_edge, c_mid);
+                win_dl->PopClipRect();
+            };
+
             if (had_error) {
                 ImGui::PushStyleColor(ImGuiCol_Text, col_err);
                 ImGui::TextWrapped("%s", status.c_str());
@@ -819,6 +851,18 @@ int main(int argc, char **argv)
                 ImGui::TextWrapped("%s", status.c_str());
                 ImGui::PopStyleColor();
             } else {
+                const ImVec2 sp = ImGui::GetCursorScreenPos();
+                const float r = font_size * 0.30f;
+                const ImVec2 sc(sp.x + r + 2.0f, sp.y + font_size * 0.52f);
+                const float a0 = anim_t * 5.2f;
+                const float a1 = a0 + 3.9f; /* ~225 deg sweeping arc */
+                const float thick = (font_size >= 28.0f) ? 3.0f : 2.2f;
+                win_dl->AddCircle(sc, r, ImGui::ColorConvertFloat4ToU32(theme.border), 24, thick);
+                win_dl->PathClear();
+                win_dl->PathArcTo(sc, r, a0, a1, 20);
+                win_dl->PathStroke(ImGui::ColorConvertFloat4ToU32(theme.heading), ImDrawFlags_None, thick);
+                ImGui::Dummy(ImVec2(r * 2.0f + 6.0f, font_size));
+                ImGui::SameLine(0.0f, 6.0f);
                 ImGui::TextWrapped("%s", status.c_str());
             }
             ImGui::Spacing();
@@ -829,6 +873,7 @@ int main(int argc, char **argv)
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                   had_error ? col_err : (finished ? col_ok : theme.accent));
             ImGui::ProgressBar(display_pct, ImVec2(-1.0f, font_size * 1.18f), pct_txt);
+            draw_bar_shimmer(display_pct, 0.0f, 0.72f);
             ImGui::PopStyleColor();
             ImGui::PopFont();
 
@@ -843,6 +888,7 @@ int main(int argc, char **argv)
                 ImGui::PushFont(nullptr, font_size * 0.80f);
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, theme.heading);
                 ImGui::ProgressBar(display_sub_pct, ImVec2(-1.0f, font_size * 1.08f), sub_txt);
+                draw_bar_shimmer(display_sub_pct, 0.35f, 0.95f);
                 ImGui::PopStyleColor();
                 ImGui::PopFont();
             }
