@@ -4,17 +4,21 @@ project(sdl-kitty-meta C CXX)
 option(SDL_KITTY_BUILD_EXAMPLES "Build sdl-kitty examples" ON)
 option(SDL_KITTY_BUILD_IMGUI "Build Dear ImGui SDL3+SDL_Renderer example" ON)
 option(SDL_KITTY_BUILD_NUKLEAR "Build Nuklear SDL3+SDL_Renderer demo" ON)
+option(SDL_KITTY_BUILD_SDL_TESTS "Build upstream SDL3 test suite" OFF)
+option(SDL_KITTY_RELOCATABLE "Omit source-tree path for terminals.toml (for packaged installs)" OFF)
 # Compile-time: present/debug stderr logs (SDL_KITTY_DEBUG env). Default OFF for perf.
 option(SDL_KITTY_RUNTIME_DEBUG "Compile kitty runtime debug logging" OFF)
 # Compile-time: wait for Gi=;OK after a=T (SDL_KITTY_PERF_ACK env). Default OFF.
 option(SDL_KITTY_PERF_ACK "Compile optional PERF_ACK present waits" OFF)
 
+include(GNUInstallDirs)
+
 # Build SDL3 with the Kitty video driver enabled (sources live in the submodule).
 set(SDL_KITTY ON CACHE BOOL "Use Kitty graphics protocol video driver" FORCE)
 set(SDL_SHARED ON CACHE BOOL "" FORCE)
 set(SDL_STATIC OFF CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY ON CACHE BOOL "" FORCE)
-set(SDL_TESTS ON CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY ${SDL_KITTY_BUILD_SDL_TESTS} CACHE BOOL "" FORCE)
+set(SDL_TESTS ${SDL_KITTY_BUILD_SDL_TESTS} CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/SDL)
@@ -23,21 +27,29 @@ add_subdirectory(third_party/SDL)
 # also read the repo's copies at run time, so edits show without regenerating:
 # config/terminals.toml (facts; SDL_KITTY_FACTS overrides) and
 # config/sdl-kitty.toml (tuning; SDL_KITTY_PROFILES overrides).
-set(_kitty_defs
-  "KITTY_DEFAULT_FACTS_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\""
-  "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/sdl-kitty.toml\"")
+set(_kitty_defs "")
+if(NOT SDL_KITTY_RELOCATABLE)
+  list(APPEND _kitty_defs
+    "KITTY_DEFAULT_FACTS_PATH=\"${CMAKE_SOURCE_DIR}/config/terminals.toml\""
+    "KITTY_DEFAULT_PROFILES_PATH=\"${CMAKE_SOURCE_DIR}/config/sdl-kitty.toml\""
+  )
+endif()
 if(SDL_KITTY_RUNTIME_DEBUG)
   list(APPEND _kitty_defs "SDL_KITTY_RUNTIME_DEBUG=1")
 endif()
 if(SDL_KITTY_PERF_ACK)
   list(APPEND _kitty_defs "SDL_KITTY_PERF_ACK=1")
 endif()
-if(TARGET SDL3-shared)
-  target_compile_definitions(SDL3-shared PRIVATE ${_kitty_defs})
+if(_kitty_defs)
+  if(TARGET SDL3-shared)
+    target_compile_definitions(SDL3-shared PRIVATE ${_kitty_defs})
+  endif()
+  if(TARGET SDL3-static)
+    target_compile_definitions(SDL3-static PRIVATE ${_kitty_defs})
+  endif()
 endif()
-if(TARGET SDL3-static)
-  target_compile_definitions(SDL3-static PRIVATE ${_kitty_defs})
-endif()
+
+set(_sdl_kitty_demo_targets "")
 
 if(SDL_KITTY_BUILD_EXAMPLES)
   add_executable(checker_keyboard examples/checker_keyboard.c)
@@ -79,6 +91,22 @@ if(SDL_KITTY_BUILD_EXAMPLES)
 
   add_executable(fireworks examples/fireworks.c)
   target_link_libraries(fireworks PRIVATE SDL3::SDL3)
+
+  list(APPEND _sdl_kitty_demo_targets
+    checker_keyboard
+    key_probe
+    solid_present
+    static_present
+    mouse_paint
+    tui_card
+    dvd_bounce
+    dvd_sprite
+    atlas_sprites
+    starfield
+    dirty_rects_demo
+    alpha_blit
+    fireworks
+  )
 endif()
 
 # Dear ImGui official example: SDL3 + SDL_Renderer (software-friendly for kitty).
@@ -104,7 +132,9 @@ if(SDL_KITTY_BUILD_IMGUI)
     )
     target_link_libraries(imgui_sdlrenderer3 PRIVATE SDL3::SDL3)
     # Match other demos: prefer in-tree terminals.toml when unset.
-    target_compile_definitions(imgui_sdlrenderer3 PRIVATE ${_kitty_defs})
+    if(_kitty_defs)
+      target_compile_definitions(imgui_sdlrenderer3 PRIVATE ${_kitty_defs})
+    endif()
 
     # CLI question card: radio / checkbox pick → result file (scripts/sdl-kitty-ask.sh).
     add_executable(sdl_kitty_ask
@@ -121,7 +151,10 @@ if(SDL_KITTY_BUILD_IMGUI)
       "${_imgui_dir}/backends"
     )
     target_link_libraries(sdl_kitty_ask PRIVATE SDL3::SDL3)
-    target_compile_definitions(sdl_kitty_ask PRIVATE ${_kitty_defs})
+    if(_kitty_defs)
+      target_compile_definitions(sdl_kitty_ask PRIVATE ${_kitty_defs})
+    endif()
+    list(APPEND _sdl_kitty_demo_targets imgui_sdlrenderer3 sdl_kitty_ask)
   else()
     message(WARNING "SDL_KITTY_BUILD_IMGUI=ON but third_party/imgui missing; skip imgui_sdlrenderer3")
   endif()
@@ -132,8 +165,9 @@ endif()
 if(SDL_KITTY_BUILD_NUKLEAR)
   set(_nuklear_dir "${CMAKE_SOURCE_DIR}/third_party/Nuklear")
   if(EXISTS "${_nuklear_dir}/nuklear.h")
+    # Parent-owned wrapper: adds Esc to quit and paces frames under software renderer.
     add_executable(nuklear_sdl3_renderer
-      "${_nuklear_dir}/demo/sdl3_renderer/main.c"
+      "${CMAKE_SOURCE_DIR}/examples/nuklear_sdl3_main.c"
     )
     target_include_directories(nuklear_sdl3_renderer PRIVATE
       "${_nuklear_dir}"
@@ -145,12 +179,76 @@ if(SDL_KITTY_BUILD_NUKLEAR)
     else()
       target_link_libraries(nuklear_sdl3_renderer PRIVATE SDL3::SDL3)
     endif()
-    target_compile_definitions(nuklear_sdl3_renderer PRIVATE ${_kitty_defs})
+    if(_kitty_defs)
+      target_compile_definitions(nuklear_sdl3_renderer PRIVATE ${_kitty_defs})
+    endif()
     # Nuklear demo is written as C89; keep warnings usable on Clang.
     target_compile_options(nuklear_sdl3_renderer PRIVATE -Wno-unused-function)
+    list(APPEND _sdl_kitty_demo_targets nuklear_sdl3_renderer)
   else()
     message(WARNING "SDL_KITTY_BUILD_NUKLEAR=ON but third_party/Nuklear missing; skip nuklear_sdl3_renderer")
   endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Relocatable install layout (private lib/sdl-kitty avoids colliding with
+# system or Homebrew sdl3 installs):
+#   <prefix>/bin/sdlk
+#   <prefix>/lib/sdl-kitty/libSDL3.{0.dylib,so.0}
+#   <prefix>/share/sdl-kitty/terminals.toml
+#   <prefix>/share/sdl-kitty/demos/<demo>
+#   <prefix>/share/sdl-kitty/demos/assets/<png>
+# ---------------------------------------------------------------------------
+set(_sdl_kitty_priv_libdir "${CMAKE_INSTALL_LIBDIR}/sdl-kitty")
+set(_sdl_kitty_datadir "${CMAKE_INSTALL_DATADIR}/sdl-kitty")
+set(_sdl_kitty_demosdir "${_sdl_kitty_datadir}/demos")
+
+if(APPLE)
+  set(_sdl_kitty_demo_rpath "@loader_path/../../../${_sdl_kitty_priv_libdir}")
+else()
+  set(_sdl_kitty_demo_rpath "\$ORIGIN/../../../${_sdl_kitty_priv_libdir}")
+endif()
+
+foreach(_t IN LISTS _sdl_kitty_demo_targets)
+  set_target_properties(${_t} PROPERTIES INSTALL_RPATH "${_sdl_kitty_demo_rpath}")
+endforeach()
+
+if(TARGET SDL3-shared)
+  install(TARGETS SDL3-shared
+    LIBRARY DESTINATION "${_sdl_kitty_priv_libdir}"
+    RUNTIME DESTINATION "${_sdl_kitty_priv_libdir}"
+  )
+endif()
+
+if(_sdl_kitty_demo_targets)
+  install(TARGETS ${_sdl_kitty_demo_targets}
+    RUNTIME DESTINATION "${_sdl_kitty_demosdir}"
+  )
+endif()
+
+install(PROGRAMS "${CMAKE_SOURCE_DIR}/scripts/sdlk"
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
+install(FILES
+  "${CMAKE_SOURCE_DIR}/config/terminals.toml"
+  "${CMAKE_SOURCE_DIR}/config/sdl-kitty.toml"
+  DESTINATION "${_sdl_kitty_datadir}"
+)
+
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/assets"
+  DESTINATION "${_sdl_kitty_demosdir}"
+)
+
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt"
+  DESTINATION "${_sdl_kitty_datadir}/licenses"
+)
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/SDL/LICENSE.txt")
+  install(FILES "${CMAKE_SOURCE_DIR}/third_party/SDL/LICENSE.txt"
+    DESTINATION "${_sdl_kitty_datadir}/licenses"
+    RENAME "SDL-LICENSE.txt"
+  )
 endif()
 
 enable_testing()

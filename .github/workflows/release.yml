@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release version tag (e.g. v0.5.0)'
+        required: true
+        default: 'v0.5.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os_name }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            os_name: darwin
+            arch: arm64
+          - runner: macos-15-intel
+            os_name: darwin
+            arch: x86_64
+          - runner: ubuntu-22.04
+            os_name: linux
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            os_name: linux
+            arch: arm64
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies (Linux)
+        if: matrix.os_name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config zlib1g-dev \
+            libasound2-dev libpulse-dev libudev-dev
+
+      - name: Install build dependencies (macOS)
+        if: matrix.os_name == 'darwin'
+        run: brew install ninja
+
+      - name: Determine release version
+        id: meta
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+          echo "archive=sdl-kitty-${VER}-${{ matrix.os_name }}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version into sdlk
+        shell: bash
+        run: |
+          sed -i.bak 's/^SDLK_VERSION=.*/SDLK_VERSION="${SDLK_VERSION:-${{ steps.meta.outputs.ver }}}"/' scripts/sdlk
+          rm -f scripts/sdlk.bak
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_KITTY_RELOCATABLE=ON \
+            -DSDL_KITTY_BUILD_SDL_TESTS=OFF \
+            -DSDL_KITTY_RUNTIME_DEBUG=OFF \
+            -DSDL_KITTY_PERF_ACK=OFF
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Run unit tests
+        run: ctest --test-dir build -R 'kitty_(probe|rect|profile)_utils_test' --output-on-failure
+
+      - name: Stage and package tarball
+        shell: bash
+        run: |
+          ARCHIVE="${{ steps.meta.outputs.archive }}"
+          STAGE="stage/${ARCHIVE}"
+          cmake --install build --prefix "${STAGE}"
+          chmod +x "${STAGE}/bin/sdlk"
+          mkdir -p dist
+          tar -C stage -czf "dist/${ARCHIVE}.tar.gz" "${ARCHIVE}"
+          ls -lh "dist/${ARCHIVE}.tar.gz"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os_name }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum sdl-kitty-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/sdl-kitty-*.tar.gz
+            dist/SHA256SUMS

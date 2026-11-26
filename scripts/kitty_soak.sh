@@ -71,18 +71,22 @@ detect_host() {
   echo "unknown"
 }
 
-# id|label|binary_relative_to_build|hint
+# id|label|kind|payload|hint
+#   kind=bin   → build/<payload>
+#   kind=ask   → scripts/sdl-kitty-ask.sh (8-option card; exit = choice)
 DEMOS=(
-  "solid|solid_present|solid_present|full-frame color smoke"
-  "static|static_present|static_present|identical frames / upload_skip"
-  "dirty|dirty_rects_demo|dirty_rects_demo|sparse dirty + periodic tint"
-  "dvd|dvd_sprite|dvd_sprite|logo motion + dirty"
-  "bounce|dvd_bounce|dvd_bounce|bounce variant"
-  "alpha|alpha_blit|alpha_blit|RGBA translucent discs"
-  "fw|fireworks|fireworks|rockets over lake; q quits"
-  "paint|mouse_paint|mouse_paint|left-drag paint; q quits"
-  "keys|key_probe|key_probe|keyboard + TEXT input harness"
+  "solid|solid_present|bin|solid_present|full-frame color smoke"
+  "static|static_present|bin|static_present|identical frames / upload_skip"
+  "dirty|dirty_rects_demo|bin|dirty_rects_demo|sparse dirty + periodic tint"
+  "dvd|dvd_sprite|bin|dvd_sprite|logo motion + dirty"
+  "bounce|dvd_bounce|bin|dvd_bounce|bounce variant"
+  "alpha|alpha_blit|bin|alpha_blit|RGBA translucent discs"
+  "fw|fireworks|bin|fireworks|rockets over lake; q quits"
+  "paint|mouse_paint|bin|mouse_paint|left-drag paint; q quits"
+  "keys|key_probe|bin|key_probe|keyboard + TEXT input harness"
+  "ask|kitty-ask|ask|soak8|ImGui ask card (8 options → exit 0..7 / 255)"
 )
+ASK_SH="${ROOT}/scripts/sdl-kitty-ask.sh"
 
 demo_field() {
   local row="$1" n="$2"
@@ -111,43 +115,11 @@ need_build() {
   fi
 }
 
-run_one() {
-  local id="$1"
-  local row bin label hint log
-  row="$(find_demo "$id")" || {
-    echo "unknown demo id: $id (try --list)" >&2
-    return 1
-  }
-  label="$(demo_field "$row" 2)"
-  bin="${BUILD}/$(demo_field "$row" 3)"
-  hint="$(demo_field "$row" 4)"
-  if [[ ! -x "$bin" ]]; then
-    echo "binary not built: $bin" >&2
-    echo "  cmake --build build --target $(demo_field "$row" 3)" >&2
-    return 1
-  fi
-
-  mkdir -p "$LOG_DIR"
-  log="${LOG_DIR}/${id}.log"
-  {
-    echo "=== soak host=${HOST} demo=${id} (${label}) $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-    echo "hint: ${hint}"
-    echo "bin: ${bin}"
-    echo "TERM_PROGRAM=${TERM_PROGRAM:-} TERM=${TERM:-} VER=${TERM_PROGRAM_VERSION:-}"
-    echo "SDL_KITTY_PROFILES=${SDL_KITTY_PROFILES:-}"
-  } | tee "$log"
-
-  echo ""
-  echo "▶ ${label}  [${id}]  — ${hint}"
-  echo "  log: ${log}"
-  echo "  quit the demo (q / Esc) to return to the menu"
-  echo ""
-
-  # DEBUG on stderr → log file. Keep stdout on the tty (Kitty APC graphics).
+run_bin() {
+  local bin="$1" log="$2"
   export SDL_KITTY_DEBUG="${SDL_KITTY_DEBUG:-1}"
   set +e
   if [[ "$SECONDS_LIMIT" -gt 0 ]]; then
-    # Portable soft timeout: background + sleep + kill (macOS has no timeout(1)).
     "$RUNNER" "$bin" 2>>"$log" &
     local pid=$!
     ( sleep "$SECONDS_LIMIT"; kill "$pid" 2>/dev/null; ) &
@@ -161,12 +133,94 @@ run_one() {
     local rc=$?
   fi
   set -e
+  return "$rc"
+}
+
+run_ask() {
+  local log="$1"
+  if [[ ! -x "$ASK_SH" ]]; then
+    echo "missing $ASK_SH" >&2
+    return 1
+  fi
+  if [[ ! -x "${BUILD}/sdl_kitty_ask" ]]; then
+    echo "binary not built: ${BUILD}/sdl_kitty_ask" >&2
+    echo "  cmake --build build --target sdl_kitty_ask" >&2
+    return 1
+  fi
+  set +e
+  "$ASK_SH" \
+    "Pick a soak demo id (exit code = 0-based index):" \
+    "solid" "static" "dirty" "dvd" "bounce" "alpha" "fireworks" "paint" \
+    2>>"$log"
+  local rc=$?
+  set -e
+  return "$rc"
+}
+
+run_one() {
+  local id="$1"
+  local row label kind payload hint log bin rc=0
+  row="$(find_demo "$id")" || {
+    echo "unknown demo id: $id (try --list)" >&2
+    return 1
+  }
+  label="$(demo_field "$row" 2)"
+  kind="$(demo_field "$row" 3)"
+  payload="$(demo_field "$row" 4)"
+  hint="$(demo_field "$row" 5)"
+
+  mkdir -p "$LOG_DIR"
+  log="${LOG_DIR}/${id}.log"
+  {
+    echo "=== soak host=${HOST} demo=${id} (${label}) kind=${kind} $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+    echo "hint: ${hint}"
+    echo "payload: ${payload}"
+    echo "TERM_PROGRAM=${TERM_PROGRAM:-} TERM=${TERM:-} VER=${TERM_PROGRAM_VERSION:-}"
+    echo "SDL_KITTY_PROFILES=${SDL_KITTY_PROFILES:-}"
+  } | tee "$log"
+
+  echo ""
+  echo "▶ ${label}  [${id}]  — ${hint}"
+  echo "  log: ${log}"
+  case "$kind" in
+    ask)  echo "  OK → exit 0..7 (choice); Esc → 255; then back to menu" ;;
+    *)    echo "  quit the demo (q / Esc) to return to the menu" ;;
+  esac
+  echo ""
+
+  set +e
+  case "$kind" in
+    bin)
+      bin="${BUILD}/${payload}"
+      if [[ ! -x "$bin" ]]; then
+        echo "binary not built: $bin" >&2
+        echo "  cmake --build build --target ${payload}" >&2
+        set -e
+        return 1
+      fi
+      run_bin "$bin" "$log"
+      rc=$?
+      ;;
+    ask)
+      run_ask "$log"
+      rc=$?
+      ;;
+    *)
+      echo "unknown demo kind: $kind" >&2
+      set -e
+      return 1
+      ;;
+  esac
+  set -e
 
   {
     echo "=== exit ${rc} $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+    if [[ "$kind" == "ask" ]]; then
+      echo "ask exit=${rc} (0..7 = choice index, 255 = cancel)"
+    fi
     if command -v rg >/dev/null 2>&1; then
       echo "--- snippets ---"
-      rg -n 'init term=|transmit_probe|frame_edit|keyboard_protocol|WARN|FAIL|quit' "$log" | tail -40 || true
+      rg -n 'init term=|transmit_probe|frame_edit|keyboard_protocol|WARN|FAIL|quit|ask exit' "$log" | tail -40 || true
     fi
   } | tee -a "$log"
 
@@ -181,10 +235,10 @@ print_menu() {
   echo "sdl-kitty soak  host=${HOST}  log_dir=${LOG_DIR}"
   echo "────────────────────────────────────────"
   for row in "${DEMOS[@]}"; do
-    printf "  %2d) %-8s  %s\n" "$i" "$(demo_field "$row" 1)" "$(demo_field "$row" 4)"
+    printf "  %2d) %-18s  %s\n" "$i" "$(demo_field "$row" 2)" "$(demo_field "$row" 5)"
     i=$((i + 1))
   done
-  echo "   a) all      run every demo in order (quit each to advance)"
+  echo "   a) all      run graphics demos in order (skip ask)"
   echo "   l) list     print ids"
   echo "   q) quit"
   echo "────────────────────────────────────────"
@@ -208,7 +262,10 @@ menu_loop() {
         ;;
       a|A|all)
         for row in "${DEMOS[@]}"; do
-          run_one "$(demo_field "$row" 1)" || true
+          # Ladder is for FB/graphics smoke; skip interactive ask.
+          if [[ "$(demo_field "$row" 3)" == "bin" ]]; then
+            run_one "$(demo_field "$row" 1)" || true
+          fi
         done
         ;;
       '' ) continue ;;
@@ -272,7 +329,7 @@ case "$MODE" in
   list)
     echo "host=${HOST}"
     for row in "${DEMOS[@]}"; do
-      printf "  %s\t%s\t%s\n" "$(demo_field "$row" 1)" "$(demo_field "$row" 2)" "$(demo_field "$row" 4)"
+      printf "  %s\t%s\t%s\t%s\n" "$(demo_field "$row" 1)" "$(demo_field "$row" 2)" "$(demo_field "$row" 3)" "$(demo_field "$row" 5)"
     done
     ;;
   once)
@@ -284,7 +341,9 @@ case "$MODE" in
     mkdir -p "$LOG_DIR"
     echo "logs → ${LOG_DIR}"
     for row in "${DEMOS[@]}"; do
-      run_one "$(demo_field "$row" 1)" || true
+      if [[ "$(demo_field "$row" 3)" == "bin" ]]; then
+        run_one "$(demo_field "$row" 1)" || true
+      fi
     done
     echo "all done. logs → ${LOG_DIR}"
     ;;

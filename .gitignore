@@ -10,3 +10,7 @@ cmake-build-*/
 .vscode/
 **/__pycache__/
 *.pyc
+
+# Local MAME runtime state
+cfg/
+nvram/

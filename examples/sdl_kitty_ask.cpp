@@ -1,15 +1,21 @@
 /* sdl_kitty_ask.cpp — ImGui question card for sdl-kitty (docs/tui-card.md)
  *
- * Usage (via scripts/sdl-kitty-ask.sh):
- *   sdl-kitty-ask [--multi] "Question?" "Opt1" "Opt2" [... up to 8]
+ * Usage (via `sdlk ask` or scripts/sdl-kitty-ask.sh):
+ *   sdl_kitty_ask [--multi|-m] [--out FILE] "Question?" "Opt1" "Opt2" [...]
+ *   sdl_kitty_ask [--multi|-m] [--out FILE] "Question?" \
+ *       --tab "Tab A" "Opt1" "Opt2" --tab "Tab B" "Opt3" "Opt4"
  *
- * Single-select (default): radio buttons. Multi: checkboxes.
+ * Single-select (default): radio buttons. --multi: checkboxes.
  * Confirm with OK / Enter. Cancel with Esc / Cancel.
  *
- * Exit status (no answer on stdout — Kitty APC owns the tty):
- *   single: 0 .. n-1  = 0-based index of the chosen option
- *   multi:  bitmask     bit i set ⇒ option i selected
- *   cancel / Esc: 255
+ * Output:
+ *   With --out FILE:
+ *     Writes selected 0-based global option indices (one per line) to FILE.
+ *     Exit status: 0 = OK, 255 = Cancel/Esc, 2 = usage/runtime error.
+ *   Without --out (legacy Unix exit-status mode):
+ *     single: 0..n-1  = 0-based index of the chosen option (max 16)
+ *     multi:  bitmask (0..127, max 7 options so it never collides with 255)
+ *     cancel / Esc: 255
  */
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
@@ -23,73 +29,153 @@
 #include <string>
 #include <vector>
 
-enum { kMinOptions = 2, kMaxOptions = 8 };
+enum {
+    kMinOptions = 2,
+    kMaxExitSingleOptions = 16,
+    kMaxExitMultiOptions = 7,
+    kMaxFileOptions = 128,
+    kExitCancel = 255
+};
+
+struct AskTab {
+    std::string name;
+    std::vector<int> indices; /* indices into AskConfig::options */
+};
 
 struct AskConfig {
     std::string question;
     std::vector<std::string> options;
+    std::vector<AskTab> tabs;
+    std::string out_path;
     bool multi = false;
 };
-
-enum { kExitCancel = 255 };
 
 static void usage(const char *argv0)
 {
     std::fprintf(stderr,
-                 "Usage: %s [--multi|-m] \"Question\" \"Opt1\" \"Opt2\" [...Opt8]\n"
-                 "  2–8 options. Default: single-select (radio). --multi: checkboxes.\n"
-                 "  Exit status:\n"
-                 "    single: 0..n-1 = 0-based index of the choice\n"
-                 "    multi:  bitmask (bit i ⇒ option i selected)\n"
-                 "    cancel / Esc: %d\n",
-                 argv0, kExitCancel);
+                 "Usage: %s [--multi|-m] [--out FILE] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
+                 "  With --out FILE: up to %d options across any number of --tab groups;\n"
+                 "    writes 0-based indices (one per line) to FILE, exits 0 (OK) or %d (cancel).\n"
+                 "  Without --out: single-select 2–%d (exit 0..n-1), --multi 2–%d (bitmask 0..127).\n"
+                 "  Cancel / Esc: %d\n",
+                 argv0, kMaxFileOptions, kExitCancel,
+                 kMaxExitSingleOptions, kMaxExitMultiOptions, kExitCancel);
 }
 
 static bool parse_args(int argc, char **argv, AskConfig *cfg)
 {
-    std::vector<std::string> positional;
+    bool have_question = false;
+    int cur_tab = -1;
+
     for (int i = 1; i < argc; ++i) {
         const char *a = argv[i];
         if (std::strcmp(a, "--multi") == 0 || std::strcmp(a, "-m") == 0) {
             cfg->multi = true;
+        } else if (std::strcmp(a, "--out") == 0 || std::strcmp(a, "-o") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--out requires a path\n");
+                return false;
+            }
+            cfg->out_path = argv[++i];
+        } else if (std::strcmp(a, "--tab") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--tab requires a label\n");
+                return false;
+            }
+            AskTab t;
+            t.name = argv[++i];
+            cfg->tabs.push_back(t);
+            cur_tab = (int)cfg->tabs.size() - 1;
         } else if (std::strcmp(a, "--help") == 0 || std::strcmp(a, "-h") == 0) {
             usage(argv[0]);
             std::exit(0);
         } else if (a[0] == '-' && a[1] != '\0') {
             std::fprintf(stderr, "unknown flag: %s\n", a);
             return false;
+        } else if (!have_question) {
+            cfg->question = a;
+            have_question = true;
         } else {
-            positional.push_back(a);
+            const int idx = (int)cfg->options.size();
+            cfg->options.push_back(a);
+            if (cur_tab < 0) {
+                AskTab t;
+                t.name = "Options";
+                cfg->tabs.push_back(t);
+                cur_tab = 0;
+            }
+            cfg->tabs[(size_t)cur_tab].indices.push_back(idx);
         }
     }
 
-    if (positional.size() < 1u + (unsigned)kMinOptions) {
+    if (!have_question) {
         std::fprintf(stderr, "need a question and at least %d options\n", kMinOptions);
         return false;
     }
-    if (positional.size() > 1u + (unsigned)kMaxOptions) {
-        std::fprintf(stderr, "at most %d options\n", kMaxOptions);
+
+    /* Drop empty tabs if any were declared without options. */
+    std::vector<AskTab> nonempty;
+    for (size_t i = 0; i < cfg->tabs.size(); ++i) {
+        if (!cfg->tabs[i].indices.empty()) {
+            nonempty.push_back(cfg->tabs[i]);
+        }
+    }
+    cfg->tabs.swap(nonempty);
+
+    const size_t nopt = cfg->options.size();
+    const size_t max_opt = !cfg->out_path.empty()
+                               ? (size_t)kMaxFileOptions
+                               : (cfg->multi ? (size_t)kMaxExitMultiOptions
+                                             : (size_t)kMaxExitSingleOptions);
+
+    if (nopt < (size_t)kMinOptions) {
+        std::fprintf(stderr, "need at least %d options\n", kMinOptions);
         return false;
     }
-
-    cfg->question = positional[0];
-    cfg->options.assign(positional.begin() + 1, positional.end());
+    if (nopt > max_opt) {
+        std::fprintf(stderr, "at most %zu options%s (use --out FILE for more)\n",
+                     max_opt, cfg->multi ? " in --multi exit-code mode" : "");
+        return false;
+    }
     return true;
 }
 
-static int exit_code_for_selection(const AskConfig &cfg, const bool *selected, int n)
+static int write_out_file(const AskConfig &cfg, const std::vector<bool> &selected)
 {
+    FILE *fp = std::fopen(cfg.out_path.c_str(), "w");
+    if (!fp) {
+        std::fprintf(stderr, "failed to open --out file: %s\n", cfg.out_path.c_str());
+        return 2;
+    }
+    for (size_t i = 0; i < selected.size(); ++i) {
+        if (selected[i]) {
+            std::fprintf(fp, "%zu\n", i);
+        }
+    }
+    if (std::fclose(fp) != 0) {
+        std::fprintf(stderr, "failed to close --out file: %s\n", cfg.out_path.c_str());
+        return 2;
+    }
+    return 0;
+}
+
+static int exit_code_for_selection(const AskConfig &cfg, const std::vector<bool> &selected)
+{
+    if (!cfg.out_path.empty()) {
+        return write_out_file(cfg, selected);
+    }
+    const int n = (int)selected.size();
     if (cfg.multi) {
         int mask = 0;
         for (int i = 0; i < n; ++i) {
-            if (selected[i]) {
+            if (selected[(size_t)i]) {
                 mask |= (1 << i);
             }
         }
         return mask;
     }
     for (int i = 0; i < n; ++i) {
-        if (selected[i]) {
+        if (selected[(size_t)i]) {
             return i;
         }
     }
@@ -105,8 +191,10 @@ int main(int argc, char **argv)
     }
 
     const int nopt = (int)cfg.options.size();
-    bool selected[kMaxOptions] = {};
-    int radio = 0; /* single-select index */
+    const int ntabs = (int)cfg.tabs.size();
+    const bool use_tabs = (ntabs > 1);
+    std::vector<bool> selected((size_t)nopt, false);
+    int radio = 0; /* global single-select index */
     if (!cfg.multi) {
         selected[0] = true;
     }
@@ -136,7 +224,6 @@ int main(int argc, char **argv)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
 
     ImGui::StyleColorsDark();
@@ -151,25 +238,38 @@ int main(int argc, char **argv)
     bool done = false;
     bool confirmed = false;
     bool cancelled = false;
+    bool first_frame = true;
+    int active_tab = 0;
+    int pending_tab = -1;
     const ImVec4 clear_color = ImVec4(0.12f, 0.14f, 0.18f, 1.0f);
 
     while (!done) {
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_QUIT) {
-                cancelled = true;
-                done = true;
+        if (!first_frame) {
+            /* Pace idle frames (~60 Hz) since software renderer ignores VSync. */
+            if (SDL_WaitEventTimeout(&event, 16)) {
+                do {
+                    ImGui_ImplSDL3_ProcessEvent(&event);
+                    if (event.type == SDL_EVENT_QUIT) {
+                        cancelled = true;
+                        done = true;
+                    }
+                    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+                        event.window.windowID == SDL_GetWindowID(window)) {
+                        cancelled = true;
+                        done = true;
+                    }
+                    if (event.type == SDL_EVENT_KEY_DOWN &&
+                        event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                        cancelled = true;
+                        done = true;
+                    }
+                } while (SDL_PollEvent(&event));
             }
-            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-                event.window.windowID == SDL_GetWindowID(window)) {
-                cancelled = true;
-                done = true;
-            }
-            if (event.type == SDL_EVENT_KEY_DOWN &&
-                event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                cancelled = true;
-                done = true;
+        } else {
+            first_frame = false;
+            while (SDL_PollEvent(&event)) {
+                ImGui_ImplSDL3_ProcessEvent(&event);
             }
         }
 
@@ -189,38 +289,155 @@ int main(int argc, char **argv)
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (cfg.multi) {
-            for (int i = 0; i < nopt; ++i) {
-                ImGui::Checkbox(cfg.options[(size_t)i].c_str(), &selected[i]);
-            }
-        } else {
-            for (int i = 0; i < nopt; ++i) {
-                if (ImGui::RadioButton(cfg.options[(size_t)i].c_str(), &radio, i)) {
-                    /* radio index updated by RadioButton */
-                }
-            }
-            for (int i = 0; i < nopt; ++i) {
-                selected[i] = (i == radio);
+        /* Keyboard tab switching: Tab / [ / ] / Left / Right */
+        if (use_tabs) {
+            const bool prev_tab =
+                ImGui::IsKeyPressed(ImGuiKey_LeftBracket) ||
+                ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+                (ImGui::IsKeyPressed(ImGuiKey_Tab) && io.KeyShift);
+            const bool next_tab =
+                ImGui::IsKeyPressed(ImGuiKey_RightBracket) ||
+                ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+                (ImGui::IsKeyPressed(ImGuiKey_Tab) && !io.KeyShift);
+            if (next_tab) {
+                pending_tab = (active_tab + 1) % ntabs;
+            } else if (prev_tab) {
+                pending_tab = (active_tab + ntabs - 1) % ntabs;
             }
         }
 
-        ImGui::Spacing();
+        const float footer_h = ImGui::GetFrameHeightWithSpacing() + 18.0f;
+
+        auto draw_tab_options = [&](const AskTab &tab) {
+            const int tn = (int)tab.indices.size();
+            /* Number keys 1..9 toggle/select options within the active tab. */
+            for (int j = 0; j < tn && j < 9; ++j) {
+                const ImGuiKey digit = (ImGuiKey)(ImGuiKey_1 + j);
+                if (ImGui::IsKeyPressed(digit)) {
+                    const int gi = tab.indices[(size_t)j];
+                    if (cfg.multi) {
+                        selected[(size_t)gi] = !selected[(size_t)gi];
+                    } else {
+                        radio = gi;
+                    }
+                }
+            }
+
+            ImGui::BeginChild("options", ImVec2(0.0f, -footer_h), ImGuiChildFlags_None);
+            if (cfg.multi) {
+                for (int j = 0; j < tn; ++j) {
+                    const int gi = tab.indices[(size_t)j];
+                    bool val = selected[(size_t)gi];
+                    ImGui::PushID(gi);
+                    char label[280];
+                    std::snprintf(label, sizeof(label), "[%d] %s",
+                                  j + 1, cfg.options[(size_t)gi].c_str());
+                    if (ImGui::Checkbox(label, &val)) {
+                        selected[(size_t)gi] = val;
+                    }
+                    ImGui::PopID();
+                }
+            } else {
+                for (int j = 0; j < tn; ++j) {
+                    const int gi = tab.indices[(size_t)j];
+                    ImGui::PushID(gi);
+                    char label[280];
+                    std::snprintf(label, sizeof(label), "[%d] %s",
+                                  j + 1, cfg.options[(size_t)gi].c_str());
+                    if (ImGui::RadioButton(label, &radio, gi)) {
+                        /* radio updated */
+                    }
+                    ImGui::PopID();
+                }
+                for (int i = 0; i < nopt; ++i) {
+                    selected[(size_t)i] = (i == radio);
+                }
+            }
+            ImGui::EndChild();
+        };
+
+        if (use_tabs) {
+            if (ImGui::BeginTabBar("ask_tabs", ImGuiTabBarFlags_None)) {
+                for (int t = 0; t < ntabs; ++t) {
+                    const AskTab &tab = cfg.tabs[(size_t)t];
+                    int tab_sel = 0;
+                    if (cfg.multi) {
+                        for (size_t k = 0; k < tab.indices.size(); ++k) {
+                            if (selected[(size_t)tab.indices[k]]) {
+                                ++tab_sel;
+                            }
+                        }
+                    }
+                    char tab_label[128];
+                    if (cfg.multi && tab_sel > 0) {
+                        std::snprintf(tab_label, sizeof(tab_label), "%s (%d)###tab_%d",
+                                      tab.name.c_str(), tab_sel, t);
+                    } else {
+                        std::snprintf(tab_label, sizeof(tab_label), "%s###tab_%d",
+                                      tab.name.c_str(), t);
+                    }
+                    ImGuiTabItemFlags flags = ImGuiTabItemFlags_None;
+                    if (pending_tab == t) {
+                        flags |= ImGuiTabItemFlags_SetSelected;
+                    }
+                    if (ImGui::BeginTabItem(tab_label, nullptr, flags)) {
+                        if (pending_tab == t) {
+                            pending_tab = -1;
+                        }
+                        if (active_tab != t) {
+                            active_tab = t;
+                            /* In single-select, auto-select the first item on the newly focused tab
+                             * so pressing Enter immediately launches what you're looking at. */
+                            if (!cfg.multi && !tab.indices.empty()) {
+                                bool in_tab = false;
+                                for (size_t k = 0; k < tab.indices.size(); ++k) {
+                                    if (tab.indices[k] == radio) {
+                                        in_tab = true;
+                                        break;
+                                    }
+                                }
+                                if (!in_tab) {
+                                    radio = tab.indices[0];
+                                    for (int i = 0; i < nopt; ++i) {
+                                        selected[(size_t)i] = (i == radio);
+                                    }
+                                }
+                            }
+                        }
+                        draw_tab_options(tab);
+                        ImGui::EndTabItem();
+                    }
+                }
+                ImGui::EndTabBar();
+            }
+        } else {
+            draw_tab_options(cfg.tabs[0]);
+        }
+
         ImGui::Separator();
         ImGui::Spacing();
 
         int nsel = 0;
         for (int i = 0; i < nopt; ++i) {
-            if (selected[i]) {
+            if (selected[(size_t)i]) {
                 ++nsel;
             }
         }
         const bool can_ok = (nsel > 0);
 
+        char ok_label[48];
+        if (cfg.multi && nsel > 0) {
+            std::snprintf(ok_label, sizeof(ok_label), "OK (%d)", nsel);
+        } else {
+            std::snprintf(ok_label, sizeof(ok_label), "OK");
+        }
+
         if (!can_ok) {
             ImGui::BeginDisabled();
         }
-        if (ImGui::Button("OK", ImVec2(120, 0)) ||
-            (can_ok && ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+        if (ImGui::Button(ok_label, ImVec2(120, 0)) ||
+            (can_ok && (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+                        ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))) {
             confirmed = true;
             done = true;
         }
@@ -228,12 +445,17 @@ int main(int argc, char **argv)
             ImGui::EndDisabled();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+        if (!confirmed && ImGui::Button("Cancel", ImVec2(120, 0))) {
             cancelled = true;
             done = true;
         }
         ImGui::SameLine();
-        ImGui::TextDisabled(cfg.multi ? "  multi-select · Esc cancel" : "  single-select · Esc cancel");
+        if (use_tabs) {
+            ImGui::TextDisabled("  Tab/[/] switch tabs · 1-9 pick · Esc cancel");
+        } else {
+            ImGui::TextDisabled(cfg.multi ? "  multi-select · 1-9 toggle · Esc cancel"
+                                          : "  single-select · 1-9 pick · Esc cancel");
+        }
 
         ImGui::End();
 
@@ -254,5 +476,5 @@ int main(int argc, char **argv)
     if (cancelled || !confirmed) {
         return kExitCancel;
     }
-    return exit_code_for_selection(cfg, selected, nopt);
+    return exit_code_for_selection(cfg, selected);
 }

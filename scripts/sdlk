@@ -1,0 +1,1568 @@
+#!/usr/bin/env bash
+# sdlk — Run SDL3 apps (including MAME) inside Kitty-graphics-capable terminals.
+# https://github.com/visionik/sdl-kitty
+#
+# Bash 3.2 compatible (macOS default /bin/bash + Linux).
+set -euo pipefail
+
+SDLK_VERSION="${SDLK_VERSION:-0.5.0}"
+
+# ---------------------------------------------------------------------------
+# Path resolution (installed prefix OR in-tree repo checkout)
+# ---------------------------------------------------------------------------
+resolve_script_path() {
+  local p="$1" dir target
+  while [ -L "$p" ]; do
+    dir="$(cd -P "$(dirname "$p")" && pwd)"
+    target="$(readlink "$p")"
+    case "$target" in
+      /*) p="$target" ;;
+      *)  p="${dir}/${target}" ;;
+    esac
+  done
+  dir="$(cd -P "$(dirname "$p")" && pwd)"
+  printf '%s/%s\n' "$dir" "$(basename "$p")"
+}
+
+SCRIPT_REAL="$(resolve_script_path "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_REAL")"
+PREFIX="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
+
+LIB_PATH=""
+LIB_DIR=""
+FACTS_PATH=""
+PROFILES_PATH=""
+DEMOS_DIR=""
+INSTALL_MODE="installed"
+
+# 1) Installed layout: <prefix>/lib/sdl-kitty/libSDL3.{dylib,so}
+if [ -f "${PREFIX}/lib/sdl-kitty/libSDL3.dylib" ]; then
+  LIB_PATH="${PREFIX}/lib/sdl-kitty/libSDL3.dylib"
+  LIB_DIR="${PREFIX}/lib/sdl-kitty"
+elif [ -f "${PREFIX}/lib/sdl-kitty/libSDL3.0.dylib" ]; then
+  LIB_PATH="${PREFIX}/lib/sdl-kitty/libSDL3.0.dylib"
+  LIB_DIR="${PREFIX}/lib/sdl-kitty"
+elif [ -f "${PREFIX}/lib/sdl-kitty/libSDL3.so" ]; then
+  LIB_PATH="${PREFIX}/lib/sdl-kitty/libSDL3.so"
+  LIB_DIR="${PREFIX}/lib/sdl-kitty"
+elif [ -f "${PREFIX}/lib/sdl-kitty/libSDL3.so.0" ]; then
+  LIB_PATH="${PREFIX}/lib/sdl-kitty/libSDL3.so.0"
+  LIB_DIR="${PREFIX}/lib/sdl-kitty"
+elif [ -f "${PREFIX}/lib64/sdl-kitty/libSDL3.so" ]; then
+  LIB_PATH="${PREFIX}/lib64/sdl-kitty/libSDL3.so"
+  LIB_DIR="${PREFIX}/lib64/sdl-kitty"
+elif [ -f "${PREFIX}/lib64/sdl-kitty/libSDL3.so.0" ]; then
+  LIB_PATH="${PREFIX}/lib64/sdl-kitty/libSDL3.so.0"
+  LIB_DIR="${PREFIX}/lib64/sdl-kitty"
+# 2) In-tree repo layout: <repo>/build/third_party/SDL/libSDL3.{dylib,so}
+elif [ -f "${PREFIX}/build/third_party/SDL/libSDL3.dylib" ]; then
+  INSTALL_MODE="repo"
+  LIB_PATH="${PREFIX}/build/third_party/SDL/libSDL3.dylib"
+  LIB_DIR="${PREFIX}/build/third_party/SDL"
+elif [ -f "${PREFIX}/build/third_party/SDL/libSDL3.so" ]; then
+  INSTALL_MODE="repo"
+  LIB_PATH="${PREFIX}/build/third_party/SDL/libSDL3.so"
+  LIB_DIR="${PREFIX}/build/third_party/SDL"
+fi
+
+if [ "$INSTALL_MODE" = "repo" ]; then
+  FACTS_PATH="${PREFIX}/config/terminals.toml"
+  PROFILES_PATH="${PREFIX}/config/sdl-kitty.toml"
+  DEMOS_DIR="${PREFIX}/build"
+else
+  FACTS_PATH="${PREFIX}/share/sdl-kitty/terminals.toml"
+  PROFILES_PATH="${PREFIX}/share/sdl-kitty/sdl-kitty.toml"
+  DEMOS_DIR="${PREFIX}/share/sdl-kitty/demos"
+fi
+
+DATA_DIR="${SDLK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sdl-kitty}"
+ROMS_DIR="${SDLK_ROMS_DIR:-${DATA_DIR}/roms}"
+MAME_CFG_DIR="${SDLK_MAME_CFG_DIR:-${DATA_DIR}/mame-cfg}"
+
+# ---------------------------------------------------------------------------
+# Color / formatting helpers (no ANSI when piped)
+# ---------------------------------------------------------------------------
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_RED=$'\033[31m'
+  C_CYAN=$'\033[36m'
+  C_RESET=$'\033[0m'
+else
+  C_BOLD="" C_DIM="" C_GREEN="" C_YELLOW="" C_RED="" C_CYAN="" C_RESET=""
+fi
+
+ok()   { printf '%s✓%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
+warn() { printf '%s!%s %s\n' "$C_YELLOW" "$C_RESET" "$*"; }
+err()  { printf '%s✗%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
+info() { printf '%s→%s %s\n' "$C_CYAN" "$C_RESET" "$*"; }
+
+# ---------------------------------------------------------------------------
+# Terminal & live Kitty protocol probes
+# ---------------------------------------------------------------------------
+detect_terminal() {
+  local tp="${TERM_PROGRAM:-}" term="${TERM:-}"
+  if [ -n "${TMUX:-}" ]; then
+    echo "tmux"
+    return
+  fi
+  case "$tp" in
+    kitty|Kitty)         echo "kitty"; return ;;
+    ghostty|Ghostty)     echo "ghostty"; return ;;
+    WezTerm|wezterm)     echo "wezterm"; return ;;
+    rex|Rex)             echo "rex"; return ;;
+    Apple_Terminal)      echo "apple-terminal"; return ;;
+    iTerm.app)           echo "iterm2"; return ;;
+  esac
+  case "$term" in
+    *kitty*)   echo "kitty"; return ;;
+    *ghostty*) echo "ghostty"; return ;;
+    *wezterm*) echo "wezterm"; return ;;
+  esac
+  if [ -n "${KITTY_WINDOW_ID:-}" ]; then
+    echo "kitty"
+    return
+  fi
+  echo "unknown"
+}
+
+is_interactive_tty() {
+  [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ] && [ "${TERM:-}" != "dumb" ]
+}
+
+# Send an escape query to /dev/tty and read reply up to DA1 ('c') or timeout.
+# Note: called inside $(...), where stdout is a pipe, so check /dev/tty directly.
+tty_query() {
+  local seq="$1"
+  if [ ! -r /dev/tty ] || [ ! -w /dev/tty ] || [ "${TERM:-}" = "dumb" ]; then
+    return 1
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    SDLK_QUERY_SEQ="$seq" python3 - <<'PY' 2>/dev/null
+import os, re, select, sys, termios, tty
+
+seq = os.environ.get("SDLK_QUERY_SEQ", "").encode("latin1") + b"\x1b[c"
+fd = os.open("/dev/tty", os.O_RDWR)
+old = termios.tcgetattr(fd)
+buf = bytearray()
+try:
+    tty.setraw(fd)
+    os.write(fd, seq)
+    deadline_slices = 12
+    for _ in range(deadline_slices):
+        r, _, _ = select.select([fd], [], [], 0.03)
+        if not r:
+            if buf:
+                break
+            continue
+        chunk = os.read(fd, 4096)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if re.search(rb"\x1b\[\?[0-9;]*c", buf):
+            break
+        if len(buf) > 1024:
+            break
+finally:
+    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    os.close(fd)
+sys.stdout.buffer.write(buf)
+PY
+    return 0
+  fi
+
+  # Fallback when python3 is unavailable (uses dd so bash 3.2 read -n 1 does not clobber termios).
+  local saved="" reply=""
+  saved="$(stty -g </dev/tty 2>/dev/null || true)"
+  [ -n "$saved" ] || return 1
+  stty -echo -icanon min 0 time 2 </dev/tty 2>/dev/null || {
+    stty "$saved" </dev/tty 2>/dev/null || true
+    return 1
+  }
+  printf '%s\033[c' "$seq" >/dev/tty 2>/dev/null || true
+  reply="$(dd bs=256 count=1 </dev/tty 2>/dev/null || true)"
+  stty "$saved" </dev/tty 2>/dev/null || true
+  printf '%s' "$reply"
+}
+
+KITTY_GFX_PROBED=""
+KITTY_GFX_OK=0
+
+probe_kitty_graphics() {
+  if [ -n "$KITTY_GFX_PROBED" ]; then
+    return $((1 - KITTY_GFX_OK))
+  fi
+  KITTY_GFX_PROBED=1
+  if ! is_interactive_tty; then
+    KITTY_GFX_OK=0
+    return 1
+  fi
+  local resp
+  resp="$(tty_query $'\033_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\033\\')" || resp=""
+  case "$resp" in
+    *"_Gi=31;OK"*|*"Gi=31;OK"*)
+      KITTY_GFX_OK=1
+      return 0
+      ;;
+  esac
+  KITTY_GFX_OK=0
+  return 1
+}
+
+probe_kitty_keyboard() {
+  if ! is_interactive_tty; then
+    return 1
+  fi
+  local resp
+  resp="$(tty_query $'\033[?u')" || resp=""
+  case "$resp" in
+    *$'\033[?'*u*) return 0 ;;
+  esac
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# SDL3 Kitty environment setup
+# ---------------------------------------------------------------------------
+require_lib() {
+  if [ -z "$LIB_PATH" ] || [ ! -f "$LIB_PATH" ]; then
+    err "sdl-kitty libSDL3 not found under ${PREFIX}"
+    if [ "$INSTALL_MODE" = "repo" ] || [ -f "${PREFIX}/CMakeLists.txt" ]; then
+      err "Build first: cmake -S ${PREFIX} -B ${PREFIX}/build && cmake --build ${PREFIX}/build -j"
+    else
+      err "Reinstall with: curl -fsSL https://raw.githubusercontent.com/visionik/sdl-kitty/main/scripts/install.sh | sh"
+    fi
+    exit 1
+  fi
+}
+
+export_sdl_env() {
+  require_lib
+  export SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}"
+  export SDL3_DYNAMIC_API="${SDL3_DYNAMIC_API:-$LIB_PATH}"
+  if [ -z "${SDL_KITTY_FACTS:-}" ] && [ -f "$FACTS_PATH" ]; then
+    export SDL_KITTY_FACTS="$FACTS_PATH"
+  fi
+  if [ -z "${SDL_KITTY_PROFILES:-}" ] && [ -f "$PROFILES_PATH" ]; then
+    export SDL_KITTY_PROFILES="$PROFILES_PATH"
+  fi
+  if [ "$(uname -s)" = "Darwin" ]; then
+    export DYLD_LIBRARY_PATH="${LIB_DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+  else
+    export LD_LIBRARY_PATH="${LIB_DIR}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Inline graphical ImGui card (sdl_kitty_ask) + plain-TTY fallback
+# ---------------------------------------------------------------------------
+run_imgui_ask() {
+  local bin="${DEMOS_DIR}/sdl_kitty_ask"
+  [ -x "$bin" ] || return 200
+  local multi=0 has_tabs=0 cur_tab_n=0 max_tab_n=0 pos=0 skip_next=0 a
+  for a in "$@"; do
+    if [ "$skip_next" -eq 1 ]; then
+      skip_next=0
+      continue
+    fi
+    case "$a" in
+      --multi|-m) multi=1 ;;
+      --out|-o)   skip_next=1 ;;
+      --tab)
+        has_tabs=1
+        [ "$cur_tab_n" -gt "$max_tab_n" ] && max_tab_n="$cur_tab_n"
+        cur_tab_n=0
+        skip_next=1
+        ;;
+      -*) ;;
+      *)
+        if [ "$pos" -gt 0 ]; then
+          cur_tab_n=$((cur_tab_n + 1))
+        fi
+        pos=$((pos + 1))
+        ;;
+    esac
+  done
+  [ "$cur_tab_n" -gt "$max_tab_n" ] && max_tab_n="$cur_tab_n"
+  local nopt="$max_tab_n"
+  [ "$nopt" -lt 2 ] && nopt=2
+  [ "$nopt" -gt 12 ] && nopt=12
+
+  local cols=80 rows=24 sz=""
+  sz="$(stty size </dev/tty 2>/dev/null || true)"
+  if [ -n "$sz" ]; then
+    rows="${sz%% *}"
+    cols="${sz##* }"
+  fi
+
+  local extra_rows=0
+  [ "$has_tabs" -eq 1 ] && extra_rows=2
+  local vp_col="${SDL_KITTY_VIEWPORT_COL:-3}"
+  local vp_row="${SDL_KITTY_VIEWPORT_ROW:-3}"
+  local vp_w="${SDL_KITTY_VIEWPORT_W:-$((cols - 4))}"
+  local vp_h="${SDL_KITTY_VIEWPORT_H:-$((8 + extra_rows + nopt * 2))}"
+  [ "$vp_w" -lt 36 ] && vp_w=36
+  [ "$vp_h" -lt 12 ] && vp_h=12
+  if [ "$((vp_col + vp_w - 1))" -gt "$cols" ] && [ "$cols" -gt "$vp_col" ]; then
+    vp_w=$((cols - vp_col + 1))
+  fi
+  if [ "$((vp_row + vp_h - 1))" -gt "$rows" ] && [ "$rows" -gt "$((vp_row + 2))" ]; then
+    vp_h=$((rows - vp_row - 1))
+  fi
+
+  local fb_w=$((vp_w * 10))
+  local fb_h=$((vp_h * 20))
+  [ "$fb_w" -lt 480 ] && fb_w=480
+  [ "$fb_h" -lt 340 ] && fb_h=340
+
+  local err_log="${SDL_KITTY_ASK_ERR:-/tmp/sdlk-ask.err}"
+  local mode_label="single"
+  [ "$multi" -eq 1 ] && mode_label="multi"
+  local max_key="$nopt"
+  [ "$max_key" -gt 9 ] && max_key=9
+
+  export_sdl_env
+  {
+    printf '\033[2J\033[H\033[?25l'
+    if [ "$has_tabs" -eq 1 ]; then
+      printf '\033[1;1H\033[1m sdlk \033[0m  %s-select  (Tab/←→ tabs · click or 1-%d + Enter · Esc=cancel)' "$mode_label" "$max_key"
+    else
+      printf '\033[1;1H\033[1m sdlk \033[0m  %s-select  (click or 1-%d + Enter · Esc=cancel)' "$mode_label" "$max_key"
+    fi
+    printf '\033[H'
+  } >/dev/tty 2>/dev/null || true
+
+  : >"$err_log"
+  local rc=0
+  SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}" \
+  SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}" \
+  SDL_KITTY_ALTSCREEN="${SDL_KITTY_ALTSCREEN:-0}" \
+  SDL_KITTY_PLACE_CELLS="${SDL_KITTY_PLACE_CELLS:-1}" \
+  SDL_KITTY_VIEWPORT="${SDL_KITTY_VIEWPORT:-${vp_col},${vp_row},${vp_w},${vp_h}}" \
+  SDL_KITTY_FB_FIXED="${SDL_KITTY_FB_FIXED:-${fb_w}x${fb_h}}" \
+  SDL_KITTY_LEAVE_IMAGES="${SDL_KITTY_LEAVE_IMAGES:-0}" \
+    "$bin" "$@" </dev/tty >/dev/tty 2>>"$err_log" || rc=$?
+  printf '\033[?25h\033[2J\033[H' >/dev/tty 2>/dev/null || true
+  return "$rc"
+}
+
+can_use_gui_prompt() {
+  [ -z "${SDLK_NO_GUI_PROMPT:-}" ] &&
+  [ -x "${DEMOS_DIR}/sdl_kitty_ask" ] &&
+  is_interactive_tty &&
+  probe_kitty_graphics
+}
+
+UI_RESULT=255
+
+# Interactive single-select prompt. Sets UI_RESULT to 0..n-1, or 255 on cancel.
+# Usage: ui_choose "Question?" "Opt 1" "Opt 2" ...
+ui_choose() {
+  local question="$1"
+  shift
+  local count=$#
+  UI_RESULT=255
+  if [ "$count" -ge 2 ] && [ "$count" -le 16 ] && can_use_gui_prompt; then
+    local rc=0
+    run_imgui_ask "$question" "$@" || rc=$?
+    if [ "$rc" -ne 200 ]; then
+      UI_RESULT="$rc"
+      return 0
+    fi
+  fi
+
+  # Plain TTY fallback
+  printf '\n%s%s%s\n' "$C_BOLD" "$question" "$C_RESET" >/dev/tty
+  local i=1 opt
+  for opt in "$@"; do
+    printf '  %s%d)%s %s\n' "$C_CYAN" "$i" "$C_RESET" "$opt" >/dev/tty
+    i=$((i + 1))
+  done
+  local ans=""
+  while true; do
+    printf 'Choice [1-%d, q to cancel] (default 1): ' "$count" >/dev/tty
+    if ! IFS= read -r ans </dev/tty; then
+      UI_RESULT=255
+      return 0
+    fi
+    case "$ans" in
+      "") UI_RESULT=0; return 0 ;;
+      q|Q) UI_RESULT=255; return 0 ;;
+      *[!0-9]*) printf 'Enter a number from 1 to %d.\n' "$count" >/dev/tty ;;
+      *)
+        if [ "$ans" -ge 1 ] && [ "$ans" -le "$count" ]; then
+          UI_RESULT=$((ans - 1))
+          return 0
+        fi
+        printf 'Enter a number from 1 to %d.\n' "$count" >/dev/tty
+        ;;
+    esac
+  done
+}
+
+# Interactive multi-select prompt. Sets UI_RESULT to bitmask (0..127), or 255 on cancel.
+# Usage: ui_multi "Question?" "Opt 1" "Opt 2" ... (2..7 options for GUI card)
+ui_multi() {
+  local question="$1"
+  shift
+  local count=$#
+  UI_RESULT=255
+  if [ "$count" -ge 2 ] && [ "$count" -le 7 ] && can_use_gui_prompt; then
+    local rc=0
+    run_imgui_ask --multi "$question" "$@" || rc=$?
+    # Note: rc==2 is a valid bitmask (option index 1 selected), so only 200 = missing binary.
+    if [ "$rc" -ne 200 ]; then
+      UI_RESULT="$rc"
+      return 0
+    fi
+  fi
+
+  # Plain TTY fallback
+  printf '\n%s%s%s\n' "$C_BOLD" "$question" "$C_RESET" >/dev/tty
+  local i=1 opt
+  for opt in "$@"; do
+    printf '  %s%d)%s %s\n' "$C_CYAN" "$i" "$C_RESET" "$opt" >/dev/tty
+    i=$((i + 1))
+  done
+  printf 'Enter numbers separated by spaces (e.g. "1 2"), "all", or "none" [default: 1 2 3]: ' >/dev/tty
+  local line=""
+  if ! IFS= read -r line </dev/tty; then
+    UI_RESULT=255
+    return 0
+  fi
+  if [ -z "$line" ]; then
+    line="1 2 3"
+  fi
+  case "$line" in
+    q|Q|cancel) UI_RESULT=255; return 0 ;;
+    none|n|N|0) UI_RESULT=0; return 0 ;;
+    all|a|A)
+      local full=0
+      i=0
+      while [ "$i" -lt "$count" ]; do
+        full=$((full | (1 << i)))
+        i=$((i + 1))
+      done
+      UI_RESULT="$full"
+      return 0
+      ;;
+  esac
+  local mask=0 tok
+  for tok in $line; do
+    case "$tok" in
+      *[!0-9]*) ;;
+      *)
+        if [ "$tok" -ge 1 ] && [ "$tok" -le "$count" ]; then
+          mask=$((mask | (1 << (tok - 1))))
+        fi
+        ;;
+    esac
+  done
+  UI_RESULT="$mask"
+  return 0
+}
+
+UI_RESULTS=()
+
+# Tabbed prompt backed by `sdl_kitty_ask --out FILE` (unlimited options across tabs).
+# Usage: ui_ask_tabbed (single|multi) "Question?" --tab "A" "Opt1" ... --tab "B" ...
+# Sets UI_RESULT (single) or UI_RESULTS array of 0-based global indices (multi).
+ui_ask_tabbed() {
+  local mode="$1"
+  local question="$2"
+  shift 2
+  UI_RESULT=255
+  UI_RESULTS=()
+
+  if can_use_gui_prompt; then
+    local out_file
+    out_file="$(mktemp 2>/dev/null || mktemp -t sdlk-ask)"
+    local extra=()
+    [ "$mode" = "multi" ] && extra+=(--multi)
+    local rc=0
+    run_imgui_ask ${extra[@]+"${extra[@]}"} --out "$out_file" "$question" "$@" || rc=$?
+    if [ "$rc" -eq 0 ] && [ -f "$out_file" ]; then
+      local line
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        UI_RESULTS+=("$line")
+      done < "$out_file"
+      if [ "${#UI_RESULTS[@]}" -gt 0 ]; then
+        UI_RESULT="${UI_RESULTS[0]}"
+      fi
+      rm -f "$out_file"
+      return 0
+    fi
+    rm -f "$out_file"
+    if [ "$rc" -eq 255 ]; then
+      return 0
+    fi
+  fi
+
+  # Plain TTY fallback (flatten tabs with section headers)
+  printf '\n%s%s%s\n' "$C_BOLD" "$question" "$C_RESET" >/dev/tty
+  local i=1 next_is_tab=0 arg
+  for arg in "$@"; do
+    if [ "$next_is_tab" -eq 1 ]; then
+      printf '\n  %s[%s]%s\n' "$C_BOLD" "$arg" "$C_RESET" >/dev/tty
+      next_is_tab=0
+      continue
+    fi
+    if [ "$arg" = "--tab" ]; then
+      next_is_tab=1
+      continue
+    fi
+    printf '  %s%2d)%s %s\n' "$C_CYAN" "$i" "$C_RESET" "$arg" >/dev/tty
+    i=$((i + 1))
+  done
+  local total=$((i - 1))
+  if [ "$mode" = "single" ]; then
+    local ans=""
+    printf '\nChoice [1-%d, q to cancel] (default 1): ' "$total" >/dev/tty
+    if ! IFS= read -r ans </dev/tty; then return 0; fi
+    case "$ans" in
+      "") UI_RESULT=0; UI_RESULTS=(0); return 0 ;;
+      q|Q) return 0 ;;
+      *[!0-9]*) return 0 ;;
+      *)
+        if [ "$ans" -ge 1 ] && [ "$ans" -le "$total" ]; then
+          UI_RESULT=$((ans - 1))
+          UI_RESULTS=("$UI_RESULT")
+        fi
+        ;;
+    esac
+  else
+    local line="" tok
+    printf '\nEnter numbers (e.g. "1 2 5"), "all", or "none" [default: 1 2 3]: ' >/dev/tty
+    if ! IFS= read -r line </dev/tty; then return 0; fi
+    [ -z "$line" ] && line="1 2 3"
+    case "$line" in
+      q|Q|cancel|none|n|N|0) return 0 ;;
+      all|a|A)
+        local k=0
+        while [ "$k" -lt "$total" ]; do UI_RESULTS+=("$k"); k=$((k + 1)); done
+        return 0
+        ;;
+    esac
+    for tok in $line; do
+      case "$tok" in
+        *[!0-9]*) ;;
+        *)
+          if [ "$tok" -ge 1 ] && [ "$tok" -le "$total" ]; then
+            UI_RESULTS+=("$((tok - 1))")
+          fi
+          ;;
+      esac
+    done
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Free legal MAME ROM catalog (hosted directly by MAMEDev for non-commercial use)
+# Format: id|Category|Title|Year / Creator
+# ---------------------------------------------------------------------------
+MAME_ROM_CATALOG=(
+  "robby|Starter|The Adventures of Robby Roto!|1981 Bally/Midway (Jamie Fenton)"
+  "gridlee|Starter|Gridlee|1982 Videa, Inc."
+  "alienar|Starter|Alien Arena|1985 Duncan Brown"
+  "looping|Starter|Looping|1982 Video Games GmbH"
+  "spectar|Starter|Spectar|1980 Exidy"
+  "targ|Exidy Action|Targ|1980 Exidy"
+  "starfire|Exidy Action|Star Fire|1979 Exidy"
+  "crash|Exidy Action|Crash|1979 Exidy"
+  "victory|Exidy Action|Victory|1982 Exidy"
+  "topgunnr|Exidy Action|Top Gunner|1986 Exidy"
+  "fireone|Exidy Action|Fire One|1979 Exidy"
+  "sidetrac|Exidy Action|Side Trak|1979 Exidy"
+  "circus|Exidy Retro|Circus|1977 Exidy"
+  "carpolo|Exidy Retro|Car Polo|1977 Exidy"
+  "robotbwl|Exidy Retro|Robot Bowl|1977 Exidy"
+  "ripcord|Exidy Retro|Rip Cord|1979 Exidy"
+  "hardhat|Exidy Retro|Hard Hat|1982 Exidy"
+  "teetert|Exidy Retro|Teeter Torture|1982 Exidy"
+  "fax|Exidy Retro|FAX|1983 Exidy"
+)
+
+rom_url() {
+  printf 'https://www.mamedev.org/roms/%s/%s.zip' "$1" "$1"
+}
+
+rom_title() {
+  local want="$1" entry id rest
+  for entry in "${MAME_ROM_CATALOG[@]}"; do
+    id="${entry%%|*}"
+    if [ "$id" = "$want" ]; then
+      rest="${entry#*|}"
+      rest="${rest#*|}"
+      printf '%s' "${rest%%|*}"
+      return 0
+    fi
+  done
+  printf '%s' "$want"
+}
+
+installed_roms() {
+  local seen="|" entry id f base
+  for entry in "${MAME_ROM_CATALOG[@]}"; do
+    id="${entry%%|*}"
+    if [ -f "${ROMS_DIR}/${id}.zip" ]; then
+      printf '%s\n' "$id"
+      seen="${seen}${id}|"
+    fi
+  done
+  if [ -d "$ROMS_DIR" ]; then
+    for f in "${ROMS_DIR}"/*.zip; do
+      [ -f "$f" ] || continue
+      base="$(basename "$f" .zip)"
+      case "$seen" in
+        *"|${base}|"*) ;;
+        *)
+          printf '%s\n' "$base"
+          seen="${seen}${base}|"
+          ;;
+      esac
+    done
+  fi
+}
+
+render_progress_bar() {
+  local done="$1" total="$2" width=24
+  [ "$total" -le 0 ] && return 0
+  local filled=$((done * width / total))
+  local empty=$((width - filled))
+  local bar="" i=0
+  while [ "$i" -lt "$filled" ]; do bar="${bar}#"; i=$((i + 1)); done
+  i=0
+  while [ "$i" -lt "$empty" ]; do bar="${bar}-"; i=$((i + 1)); done
+  local pct=$((done * 100 / total))
+  printf '  %s[%s]%s %d/%d (%d%%)\n' "$C_CYAN" "$bar" "$C_RESET" "$done" "$total" "$pct"
+}
+
+download_rom() {
+  local id="$1"
+  local label="${2:-}"
+  local prefix=""
+  [ -n "$label" ] && prefix="[${label}] "
+  local url tmp dest
+  url="$(rom_url "$id")"
+  mkdir -p "$ROMS_DIR"
+  dest="${ROMS_DIR}/${id}.zip"
+  tmp="${dest}.part"
+
+  if [ -f "$dest" ]; then
+    ok "${prefix}${id}.zip already installed"
+    return 0
+  fi
+
+  info "${prefix}Downloading ${id}.zip from mamedev.org..."
+  if command -v curl >/dev/null 2>&1; then
+    if is_interactive_tty; then
+      if ! curl -fL --progress-bar --retry 2 -o "$tmp" "$url"; then
+        rm -f "$tmp"
+        err "${prefix}Failed to download ${url}"
+        return 1
+      fi
+    else
+      if ! curl -fsSL --retry 2 -o "$tmp" "$url"; then
+        rm -f "$tmp"
+        err "${prefix}Failed to download ${url}"
+        return 1
+      fi
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if is_interactive_tty; then
+      if ! wget --show-progress -q -O "$tmp" "$url"; then
+        rm -f "$tmp"
+        err "${prefix}Failed to download ${url}"
+        return 1
+      fi
+    else
+      if ! wget -q -O "$tmp" "$url"; then
+        rm -f "$tmp"
+        err "${prefix}Failed to download ${url}"
+        return 1
+      fi
+    fi
+  else
+    err "Neither curl nor wget found; cannot download ${url}"
+    return 1
+  fi
+
+  # Verify zip magic bytes ("PK") so we don't save an HTML error page.
+  local magic=""
+  magic="$(LC_ALL=C head -c 2 "$tmp" 2>/dev/null || true)"
+  if [ "$magic" != "PK" ]; then
+    rm -f "$tmp"
+    err "${id}.zip from mamedev.org was not a valid zip archive (site layout may have changed)."
+    err "Download manually from: https://www.mamedev.org/roms/${id}/"
+    return 1
+  fi
+
+  local bytes kb
+  bytes="$(wc -c < "$tmp" | tr -d ' ')"
+  kb=$(( (bytes + 1023) / 1024 ))
+  mv "$tmp" "$dest"
+  ok "${prefix}Saved ${id}.zip (${kb} KB)"
+}
+
+cmd_mame_roms() {
+  local mode="interactive"
+  local auto_yes=0
+  local explicit=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --list|-l)
+        mode="list"
+        shift
+        ;;
+      --all|-a)
+        mode="all"
+        shift
+        ;;
+      --yes|-y)
+        auto_yes=1
+        shift
+        ;;
+      --dir)
+        shift
+        ROMS_DIR="$1"
+        shift
+        ;;
+      -h|--help)
+        cat <<EOF
+Usage: sdlk mame-roms [--list | --all | <rom-id> ...]
+
+Download official free, non-commercial arcade ROMs directly from mamedev.org
+into ${ROMS_DIR}.
+
+Options:
+  --list, -l     Show catalog and which ROMs are installed
+  --all, -a      Download all catalog ROMs
+  --yes, -y      Accept non-commercial terms without prompting
+  --dir PATH     Override ROM download directory
+
+Examples:
+  sdlk mame-roms                  # interactive picker
+  sdlk mame-roms robby gridlee    # download specific ROMs
+  sdlk mame-roms --all --yes
+EOF
+        return 0
+        ;;
+      -*)
+        err "Unknown option: $1"
+        return 2
+        ;;
+      *)
+        mode="explicit"
+        explicit+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$mode" = "list" ]; then
+    printf '%sOfficial free MAME ROMs (https://www.mamedev.org/roms/)%s\n' "$C_BOLD" "$C_RESET"
+    printf 'Directory: %s\n' "$ROMS_DIR"
+    local entry id rest cat title meta status last_cat=""
+    for entry in "${MAME_ROM_CATALOG[@]}"; do
+      id="${entry%%|*}"
+      rest="${entry#*|}"
+      cat="${rest%%|*}"
+      rest="${rest#*|}"
+      title="${rest%%|*}"
+      meta="${rest#*|}"
+      if [ "$cat" != "$last_cat" ]; then
+        printf '\n%s%s%s\n' "$C_BOLD" "$cat" "$C_RESET"
+        last_cat="$cat"
+      fi
+      if [ -f "${ROMS_DIR}/${id}.zip" ]; then
+        status="${C_GREEN}[installed]${C_RESET}"
+      else
+        status="${C_DIM}[available]${C_RESET}"
+      fi
+      printf '  %-9s %-32s %s  %s\n' "$id" "$title" "$status" "${C_DIM}${meta}${C_RESET}"
+    done
+    return 0
+  fi
+
+  local to_download=()
+  if [ "$mode" = "all" ]; then
+    local entry
+    for entry in "${MAME_ROM_CATALOG[@]}"; do
+      to_download+=("${entry%%|*}")
+    done
+  elif [ "$mode" = "explicit" ]; then
+    to_download=("${explicit[@]}")
+  else
+    printf '\n%sFree legal arcade ROMs (courtesy of original copyright holders via mamedev.org)%s\n' "$C_BOLD" "$C_RESET"
+    printf 'Note: These ROMs are licensed for %snon-commercial use only%s and downloaded\n' "$C_BOLD" "$C_RESET"
+    printf 'directly from https://www.mamedev.org/roms/ into %s.\n' "$ROMS_DIR"
+
+    local ask_args=() ids=() entry id rest cat title mark last_cat=""
+    for entry in "${MAME_ROM_CATALOG[@]}"; do
+      id="${entry%%|*}"
+      rest="${entry#*|}"
+      cat="${rest%%|*}"
+      rest="${rest#*|}"
+      title="${rest%%|*}"
+      if [ "$cat" != "$last_cat" ]; then
+        ask_args+=(--tab "$cat")
+        last_cat="$cat"
+      fi
+      mark=""
+      [ -f "${ROMS_DIR}/${id}.zip" ] && mark=" (installed)"
+      ids+=("$id")
+      ask_args+=("${title} [${id}]${mark}")
+    done
+
+    ui_ask_tabbed multi "Select free mamedev.org ROMs (non-commercial use):" "${ask_args[@]}"
+    if [ "${#UI_RESULTS[@]}" -eq 0 ]; then
+      info "No ROMs selected."
+      return 0
+    fi
+    local idx
+    for idx in "${UI_RESULTS[@]}"; do
+      if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#ids[@]}" ]; then
+        to_download+=("${ids[$idx]}")
+      fi
+    done
+  fi
+
+  if [ "${#to_download[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ "$auto_yes" -eq 0 ] && [ "$mode" != "interactive" ] && is_interactive_tty; then
+    printf '\nThese ROMs are provided by their original copyright holders via mamedev.org\n' >/dev/tty
+    printf 'for free, non-commercial use only. Continue? [Y/n] ' >/dev/tty
+    local yn=""
+    IFS= read -r yn </dev/tty || yn="n"
+    case "$yn" in
+      n|N|no|NO) info "Cancelled."; return 0 ;;
+    esac
+  fi
+
+  local total="${#to_download[@]}"
+  local idx=0 ok_count=0 first_id="" id
+  printf '\n%sDownloading %d ROM(s) into %s%s\n' "$C_BOLD" "$total" "$ROMS_DIR" "$C_RESET"
+  for id in "${to_download[@]}"; do
+    idx=$((idx + 1))
+    if download_rom "$id" "${idx}/${total}"; then
+      ok_count=$((ok_count + 1))
+      [ -z "$first_id" ] && first_id="$id"
+    fi
+    if [ "$total" -gt 1 ]; then
+      render_progress_bar "$idx" "$total"
+    fi
+  done
+
+  if [ "$ok_count" -gt 0 ]; then
+    printf '\n'
+    ok "Ready: ${ok_count}/${total} ROM(s) in ${ROMS_DIR}"
+    info "Try playing now: ${C_BOLD}sdlk mame ${first_id}${C_RESET}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# MAME detection, installation helper, and launcher
+# ---------------------------------------------------------------------------
+mame_install_hint() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if command -v brew >/dev/null 2>&1; then
+      echo "brew install mame"
+    else
+      echo "Install Homebrew (https://brew.sh) then run: brew install mame"
+    fi
+  elif command -v pacman >/dev/null 2>&1; then
+    echo "sudo pacman -S --needed mame"
+  elif command -v dnf >/dev/null 2>&1; then
+    echo "sudo dnf install -y mame"
+  elif command -v apt-get >/dev/null 2>&1; then
+    echo "sudo apt-get update && sudo apt-get install -y mame"
+  else
+    echo "Install MAME (>= 0.281, SDL3) via your package manager"
+  fi
+}
+
+install_mame_via_pkgmgr() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if command -v brew >/dev/null 2>&1; then
+      info "Running: brew install mame"
+      brew install mame
+      return $?
+    fi
+    err "Homebrew not found. Install Homebrew (https://brew.sh), then run: brew install mame"
+    return 1
+  elif command -v pacman >/dev/null 2>&1; then
+    info "Running: sudo pacman -S --needed mame"
+    sudo pacman -S --needed mame
+    return $?
+  elif command -v dnf >/dev/null 2>&1; then
+    info "Running: sudo dnf install -y mame"
+    sudo dnf install -y mame
+    return $?
+  elif command -v apt-get >/dev/null 2>&1; then
+    info "Running: sudo apt-get update && sudo apt-get install -y mame"
+    sudo apt-get update && sudo apt-get install -y mame
+    return $?
+  fi
+  err "Could not detect a supported package manager. Install MAME manually."
+  return 1
+}
+
+check_mame_sdl_linkage() {
+  local mame_bin="$1"
+  local deps=""
+  if [ "$(uname -s)" = "Darwin" ] && command -v otool >/dev/null 2>&1; then
+    deps="$(otool -L "$mame_bin" 2>/dev/null || true)"
+  elif command -v ldd >/dev/null 2>&1; then
+    deps="$(ldd "$mame_bin" 2>/dev/null || true)"
+  fi
+  case "$deps" in
+    *libSDL3*) echo "sdl3" ;;
+    *libSDL2*) echo "sdl2" ;;
+    *)         echo "unknown" ;;
+  esac
+}
+
+# Seed a terminal-friendly MAME default.cfg (Z/X/C for Fire 1/2/3 since
+# terminals often intercept standalone Ctrl/Alt). Never overwrites user edits.
+ensure_mame_cfg() {
+  local cfg="${MAME_CFG_DIR}/default.cfg"
+  [ -f "$cfg" ] && return 0
+  mkdir -p "$MAME_CFG_DIR"
+  cat >"$cfg" <<'EOF'
+<?xml version="1.0"?>
+<mameconfig version="10">
+    <system name="default">
+        <input>
+            <port type="P1_BUTTON1">
+                <newseq type="standard">
+                    KEYCODE_Z OR KEYCODE_LCONTROL OR MOUSECODE_1_BUTTON1 OR GUNCODE_1_BUTTON1
+                </newseq>
+            </port>
+            <port type="P1_BUTTON2">
+                <newseq type="standard">
+                    KEYCODE_X OR KEYCODE_LALT
+                </newseq>
+            </port>
+            <port type="P1_BUTTON3">
+                <newseq type="standard">
+                    KEYCODE_C OR KEYCODE_SPACE
+                </newseq>
+            </port>
+        </input>
+    </system>
+</mameconfig>
+EOF
+}
+
+cmd_mame() {
+  local mame_bin="${SDLK_MAME_BIN:-}"
+  if [ -z "$mame_bin" ]; then
+    mame_bin="$(command -v mame 2>/dev/null || true)"
+  fi
+
+  if [ -z "$mame_bin" ] || [ ! -x "$mame_bin" ]; then
+    warn "MAME is not installed (or not in PATH)."
+    local hint
+    hint="$(mame_install_hint)"
+    if is_interactive_tty; then
+      ui_choose "MAME isn't installed yet. Install it now?" \
+        "Yes — run: ${hint}" \
+        "No — cancel"
+      if [ "$UI_RESULT" -eq 0 ]; then
+        install_mame_via_pkgmgr || return 1
+        mame_bin="$(command -v mame 2>/dev/null || true)"
+      else
+        return 1
+      fi
+    else
+      err "Install MAME first: ${hint}"
+      return 1
+    fi
+  fi
+
+  if [ -z "$mame_bin" ] || [ ! -x "$mame_bin" ]; then
+    err "mame still not found in PATH after installation."
+    return 1
+  fi
+
+  local linkage
+  linkage="$(check_mame_sdl_linkage "$mame_bin")"
+  if [ "$linkage" = "sdl2" ]; then
+    warn "Your mame binary (${mame_bin}) is linked against SDL2 rather than SDL3."
+    warn "sdl-kitty is an SDL3 driver: upgrade to MAME >= 0.281, or install sdl2-compat so SDL2 routes through libSDL3."
+  fi
+
+  # Detect whether caller already supplied -video, -rompath, or -cfg_directory
+  local has_video=0 has_rompath=0 has_cfgdir=0 a
+  for a in "$@"; do
+    case "$a" in
+      -video)         has_video=1 ;;
+      -rompath)       has_rompath=1 ;;
+      -cfg_directory) has_cfgdir=1 ;;
+    esac
+  done
+
+  local args=()
+  if [ "$has_video" -eq 0 ]; then
+    args+=(-video soft -window)
+  fi
+
+  if [ "$has_cfgdir" -eq 0 ]; then
+    ensure_mame_cfg
+    args+=(-cfg_directory "$MAME_CFG_DIR")
+  fi
+
+  if [ "$has_rompath" -eq 0 ]; then
+    local rp=""
+    [ -d "$ROMS_DIR" ] && rp="$ROMS_DIR"
+    if [ -n "${MAME_ROMPATH:-}" ]; then
+      rp="${MAME_ROMPATH}${rp:+;$rp}"
+    fi
+    # Also preserve MAME's standard user roms directories if present
+    for d in "$HOME/mame/roms" "$HOME/.mame/roms" "$HOME/Library/Application Support/mame/roms"; do
+      if [ -d "$d" ]; then
+        rp="${rp:+$rp;}$d"
+      fi
+    done
+    if [ -n "$rp" ]; then
+      args+=(-rompath "$rp")
+    fi
+  fi
+
+  if [ -z "${SDLK_QUIET:-}" ] && is_interactive_tty; then
+    printf '%sControls:%s 5=Coin · 1=Start · Arrows=Move · Z/X=Fire · Tab=Menu · Esc=Quit\n' \
+      "$C_BOLD" "$C_RESET" >/dev/tty
+    sleep 0.6
+  fi
+
+  export_sdl_env
+  local err_log="${SDLK_MAME_ERR:-/tmp/sdlk-mame.err}"
+  if [ "$err_log" = "-" ]; then
+    exec "$mame_bin" ${args[@]+"${args[@]}"} "$@"
+  fi
+  local rc=0
+  "$mame_bin" ${args[@]+"${args[@]}"} "$@" 2>"$err_log" || rc=$?
+  if [ "$rc" -ne 0 ] && [ -s "$err_log" ]; then
+    err "MAME exited with status ${rc}:"
+    tail -n 15 "$err_log" >&2
+    if grep -q "NOT FOUND" "$err_log" 2>/dev/null; then
+      info "Download free legal ROMs with: sdlk mame-roms (or pass -rompath / set MAME_ROMPATH)"
+    fi
+  fi
+  return "$rc"
+}
+
+# ---------------------------------------------------------------------------
+# Demos
+# ---------------------------------------------------------------------------
+DEMO_CATALOG=(
+  "fireworks|fireworks|Fireworks over night lake (sparse dirty + alpha)"
+  "mouse_paint|mouse_paint|Mouse Paint (click/drag to draw; q/Esc quits)"
+  "imgui|imgui_sdlrenderer3|Dear ImGui full UI demo inside your terminal"
+  "nuklear|nuklear_sdl3_renderer|Nuklear UI demo inside your terminal"
+  "alpha_blit|alpha_blit|Translucent RGBA discs over grid"
+  "dirty|dirty_rects_demo|Sparse dirty-rect updates (a=f)"
+  "dvd|dvd_sprite|Bouncing DVD sprite"
+  "starfield|starfield|3D starfield"
+  "solid|solid_present|Solid color smoke test"
+  "key_probe|key_probe|Keyboard CSI-u physical key probe"
+  "tui_card|tui_card|Inline TUI viewport card demo"
+)
+
+cmd_demo() {
+  local name="${1:-}"
+  if [ "$name" = "--list" ] || [ "$name" = "-l" ]; then
+    printf '%sBundled sdl-kitty demos:%s\n\n' "$C_BOLD" "$C_RESET"
+    local entry id rest bin desc avail
+    for entry in "${DEMO_CATALOG[@]}"; do
+      id="${entry%%|*}"
+      rest="${entry#*|}"
+      bin="${rest%%|*}"
+      desc="${rest#*|}"
+      if [ -x "${DEMOS_DIR}/${bin}" ]; then
+        avail=""
+      else
+        avail=" ${C_DIM}(not built)${C_RESET}"
+      fi
+      printf '  %-12s %s%s\n' "$id" "$desc" "$avail"
+    done
+    return 0
+  fi
+
+  if [ -z "$name" ]; then
+    # Interactive demo picker (top 7 showcase demos fit in sdl_kitty_ask)
+    local labels=() ids=() entry id rest bin desc
+    for entry in "${DEMO_CATALOG[@]}"; do
+      id="${entry%%|*}"
+      rest="${entry#*|}"
+      bin="${rest%%|*}"
+      desc="${rest#*|}"
+      [ -x "${DEMOS_DIR}/${bin}" ] || continue
+      ids+=("$id")
+      labels+=("${id} — ${desc}")
+      [ "${#ids[@]}" -ge 8 ] && break
+    done
+    if [ "${#ids[@]}" -eq 0 ]; then
+      err "No demos found in ${DEMOS_DIR}"
+      return 1
+    fi
+    ui_choose "Pick an sdl-kitty demo to run:" "${labels[@]}"
+    [ "$UI_RESULT" -eq 255 ] && return 0
+    name="${ids[$UI_RESULT]}"
+  else
+    shift || true
+  fi
+
+  local target_bin="" entry id rest bin
+  for entry in "${DEMO_CATALOG[@]}"; do
+    id="${entry%%|*}"
+    rest="${entry#*|}"
+    bin="${rest%%|*}"
+    if [ "$name" = "$id" ] || [ "$name" = "$bin" ]; then
+      target_bin="${DEMOS_DIR}/${bin}"
+      break
+    fi
+  done
+
+  if [ -z "$target_bin" ] && [ -x "${DEMOS_DIR}/${name}" ]; then
+    target_bin="${DEMOS_DIR}/${name}"
+  fi
+
+  if [ -z "$target_bin" ] || [ ! -x "$target_bin" ]; then
+    err "Unknown or unbuilt demo: ${name}"
+    err "Run 'sdlk demo --list' to see available demos."
+    return 1
+  fi
+
+  export_sdl_env
+  case "$name" in
+    imgui|imgui_sdlrenderer3|nuklear|nuklear_sdl3_renderer)
+      export SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}"
+      ;;
+  esac
+  local err_log="${SDLK_DEMO_ERR:-/tmp/sdlk-demo.err}"
+  exec "$target_bin" "$@" 2>"$err_log"
+}
+
+# ---------------------------------------------------------------------------
+# sdlk ask — expose ImGui card as a reusable CLI widget
+# ---------------------------------------------------------------------------
+cmd_ask() {
+  if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'EOF'
+Usage: sdlk ask [--multi|-m] [--out FILE] "Question?" [--tab "Name"] "Opt 1" "Opt 2" ...
+
+Render an inline Dear ImGui radio/checkbox card (optionally tabbed) inside your terminal.
+  With --out FILE: writes selected 0-based indices (one per line) to FILE; exit 0 (OK) or 255 (cancel).
+  Without --out:   single-select exit 0..n-1 (max 16); --multi exit bitmask 0..127 (max 7); cancel 255.
+EOF
+    return 0
+  fi
+  if [ ! -x "${DEMOS_DIR}/sdl_kitty_ask" ]; then
+    err "sdl_kitty_ask binary not found in ${DEMOS_DIR}"
+    return 2
+  fi
+  run_imgui_ask "$@"
+}
+
+# ---------------------------------------------------------------------------
+# sdlk run — launch any SDL3 binary under Kitty video driver
+# ---------------------------------------------------------------------------
+cmd_run() {
+  if [ $# -lt 1 ]; then
+    err "Usage: sdlk run <command> [args...]"
+    return 2
+  fi
+  export_sdl_env
+  exec "$@"
+}
+
+# ---------------------------------------------------------------------------
+# sdlk doctor — terminal, protocol, MAME, and install diagnostics
+# ---------------------------------------------------------------------------
+cmd_doctor() {
+  printf '%ssdlk %s%s (%s)\n' "$C_BOLD" "$SDLK_VERSION" "$C_RESET" "$INSTALL_MODE"
+  printf '  Prefix:   %s\n' "$PREFIX"
+  if [ -n "$LIB_PATH" ] && [ -f "$LIB_PATH" ]; then
+    ok "libSDL3:  ${LIB_PATH}"
+  else
+    err "libSDL3:  MISSING (expected under ${PREFIX}/lib/sdl-kitty)"
+  fi
+  if [ -f "$FACTS_PATH" ]; then
+    ok "Facts:    ${FACTS_PATH}"
+  else
+    warn "Facts:    not found at ${FACTS_PATH} (using compiled-in facts)"
+  fi
+  if [ -f "$PROFILES_PATH" ]; then
+    ok "Profiles: ${PROFILES_PATH}"
+  else
+    warn "Profiles: not found at ${PROFILES_PATH} (using compiled-in defaults)"
+  fi
+
+  local term_kind
+  term_kind="$(detect_terminal)"
+  printf '  Terminal: %s (TERM=%s TERM_PROGRAM=%s %s)\n' \
+    "$term_kind" "${TERM:-}" "${TERM_PROGRAM:-}" "${TERM_PROGRAM_VERSION:-}"
+
+  case "$term_kind" in
+    apple-terminal)
+      warn "Apple Terminal does not support the Kitty graphics protocol."
+      info "Use Ghostty (brew install --cask ghostty), Kitty (brew install --cask kitty), WezTerm, iTerm2, or Rex."
+      ;;
+    tmux)
+      warn "Running inside tmux: Kitty graphics require tmux allow-passthrough and may degrade SHM."
+      info "For best performance, run sdlk directly in Kitty, Ghostty, WezTerm, iTerm2, or Rex."
+      ;;
+  esac
+
+  if is_interactive_tty; then
+    if probe_kitty_graphics; then
+      ok "Kitty graphics protocol: supported (live a=q probe OK)"
+    else
+      err "Kitty graphics protocol: no reply to a=q probe"
+      info "Try running inside Ghostty, Kitty, WezTerm, or Rex."
+    fi
+
+    if probe_kitty_keyboard; then
+      ok "Kitty keyboard protocol: supported (CSI ? u OK)"
+    else
+      warn "Kitty keyboard protocol: no reply to CSI ? u (games may have sticky/janky keys)"
+      if [ "$term_kind" = "wezterm" ]; then
+        info "WezTerm fix: add 'config.enable_kitty_keyboard = true' to ~/.config/wezterm/wezterm.lua"
+      fi
+    fi
+  else
+    warn "Not attached to an interactive TTY — skipped live terminal probes."
+  fi
+
+  local mame_bin="${SDLK_MAME_BIN:-}"
+  if [ -z "$mame_bin" ]; then
+    mame_bin="$(command -v mame 2>/dev/null || true)"
+  fi
+  if [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
+    local link
+    link="$(check_mame_sdl_linkage "$mame_bin")"
+    if [ "$link" = "sdl3" ]; then
+      ok "MAME:     ${mame_bin} (SDL3 linked — ready!)"
+    elif [ "$link" = "sdl2" ]; then
+      warn "MAME:     ${mame_bin} (linked to SDL2 — upgrade to MAME >= 0.281 or use sdl2-compat)"
+    else
+      ok "MAME:     ${mame_bin}"
+    fi
+  else
+    warn "MAME:     not installed — run: $(mame_install_hint)"
+  fi
+
+  local rom_count=0 r
+  for r in $(installed_roms); do
+    rom_count=$((rom_count + 1))
+  done
+  if [ "$rom_count" -gt 0 ]; then
+    ok "ROMs:     ${rom_count} free ROM(s) in ${ROMS_DIR}"
+  else
+    info "ROMs:     none in ${ROMS_DIR} yet (run 'sdlk mame-roms' to grab free arcade games)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# sdlk setup — interactive onboarding wizard (MAME + free ROMs + launch!)
+# ---------------------------------------------------------------------------
+cmd_setup() {
+  local auto_yes=0 skip_mame=0 skip_roms=0 skip_launch=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --yes|-y)       auto_yes=1; shift ;;
+      --no-mame)      skip_mame=1; shift ;;
+      --no-roms)      skip_roms=1; shift ;;
+      --no-launch)    skip_launch=1; shift ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: sdlk setup [--yes] [--no-mame] [--no-roms] [--no-launch]
+
+Interactive setup wizard: checks your terminal, optionally installs MAME,
+optionally downloads free legal arcade ROMs from mamedev.org, and lets you
+launch a game or demo right away.
+EOF
+        return 0
+        ;;
+      *) err "Unknown option: $1"; return 2 ;;
+    esac
+  done
+
+  printf '\n%ssdl-kitty (sdlk) setup%s\n' "$C_BOLD" "$C_RESET"
+
+  local term_kind
+  term_kind="$(detect_terminal)"
+  if is_interactive_tty && probe_kitty_graphics; then
+    ok "Kitty-capable terminal detected (${term_kind})."
+  else
+    warn "Current terminal (${term_kind}) did not reply to Kitty graphics probe."
+    info "sdlk works in Ghostty, Kitty, WezTerm, and Rex. Continuing with text prompts."
+  fi
+
+  # 1) Offer to install MAME if missing
+  local mame_bin="${SDLK_MAME_BIN:-}"
+  [ -z "$mame_bin" ] && mame_bin="$(command -v mame 2>/dev/null || true)"
+  if [ "$skip_mame" -eq 0 ] && { [ -z "$mame_bin" ] || [ ! -x "$mame_bin" ]; }; then
+    local hint
+    hint="$(mame_install_hint)"
+    local do_mame=0
+    if [ "$auto_yes" -eq 1 ]; then
+      do_mame=1
+    elif is_interactive_tty; then
+      ui_choose "MAME is not installed. Install MAME to play arcade games in your terminal?" \
+        "Yes — install MAME (${hint})" \
+        "Skip for now"
+      [ "$UI_RESULT" -eq 0 ] && do_mame=1
+    fi
+    if [ "$do_mame" -eq 1 ]; then
+      install_mame_via_pkgmgr || warn "MAME install did not finish; you can install it later with: ${hint}"
+      mame_bin="$(command -v mame 2>/dev/null || true)"
+    fi
+  elif [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
+    ok "MAME is already installed (${mame_bin})."
+  fi
+
+  # 2) Offer free legal ROMs from mamedev.org
+  if [ "$skip_roms" -eq 0 ]; then
+    if [ "$auto_yes" -eq 1 ]; then
+      cmd_mame_roms --yes robby gridlee alienar
+    elif is_interactive_tty; then
+      ui_choose "Download free legal arcade ROMs from mamedev.org?" \
+        "Yes — pick games (Robby Roto, Gridlee, Alien Arena, Spectar...)" \
+        "Quick pack — Robby Roto + Gridlee + Alien Arena" \
+        "Skip for now"
+      case "$UI_RESULT" in
+        0) cmd_mame_roms ;;
+        1) cmd_mame_roms --yes robby gridlee alienar ;;
+        *) info "Skipped ROMs (run 'sdlk mame-roms' anytime)." ;;
+      esac
+    fi
+  fi
+
+  # 3) Offer an immediate launch!
+  if [ "$skip_launch" -eq 0 ] && [ "$auto_yes" -eq 0 ] && is_interactive_tty && probe_kitty_graphics; then
+    local first_rom=""
+    first_rom="$(installed_roms | head -n 1 || true)"
+    local opts=() actions=()
+    if [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
+      if [ -n "$first_rom" ]; then
+        opts+=("Play ${first_rom} in MAME right now!")
+        actions+=("mame:${first_rom}")
+      else
+        opts+=("Open MAME menu in your terminal")
+        actions+=("mame:")
+      fi
+    fi
+    if [ -x "${DEMOS_DIR}/fireworks" ]; then
+      opts+=("Run Fireworks demo")
+      actions+=("demo:fireworks")
+    fi
+    if [ -x "${DEMOS_DIR}/imgui_sdlrenderer3" ]; then
+      opts+=("Run Dear ImGui demo")
+      actions+=("demo:imgui")
+    fi
+    if [ -x "${DEMOS_DIR}/mouse_paint" ]; then
+      opts+=("Run Mouse Paint demo")
+      actions+=("demo:mouse_paint")
+    fi
+    opts+=("Done — return to shell")
+    actions+=("done")
+
+    ui_choose "All set! Want to try sdlk right now?" "${opts[@]}"
+    if [ "$UI_RESULT" -ge 0 ] && [ "$UI_RESULT" -lt "${#actions[@]}" ]; then
+      local act="${actions[$UI_RESULT]}"
+      case "$act" in
+        mame:*)
+          local g="${act#mame:}"
+          if [ -n "$g" ]; then
+            cmd_mame "$g"
+          else
+            cmd_mame
+          fi
+          ;;
+        demo:*)
+          cmd_demo "${act#demo:}"
+          ;;
+      esac
+    fi
+  fi
+
+  printf '\n%sQuick commands:%s\n' "$C_BOLD" "$C_RESET"
+  printf '  sdlk                Interactive launcher\n'
+  printf '  sdlk demo           Run bundled demos (fireworks, imgui, mouse_paint...)\n'
+  printf '  sdlk mame [game]    Run MAME in your terminal\n'
+  printf '  sdlk mame-roms      Download free legal arcade ROMs from mamedev.org\n'
+  printf '  sdlk doctor         Check terminal & protocol support\n\n'
+}
+
+# ---------------------------------------------------------------------------
+# sdlk uninstall
+# ---------------------------------------------------------------------------
+cmd_uninstall() {
+  case "$PREFIX" in
+    /opt/homebrew/*|/usr/local/Cellar/*|/home/linuxbrew/*)
+      info "sdlk was installed via Homebrew. Uninstall with:"
+      printf '  brew uninstall sdl-kitty\n'
+      return 0
+      ;;
+  esac
+  if [ "$INSTALL_MODE" = "repo" ]; then
+    info "Running from git checkout (${PREFIX}); nothing to uninstall."
+    return 0
+  fi
+
+  local bin_link="${HOME}/.local/bin/sdlk"
+  printf 'This will remove:\n'
+  printf '  %s\n' "$PREFIX"
+  [ -L "$bin_link" ] || [ -f "$bin_link" ] && printf '  %s\n' "$bin_link"
+  if [ -d "$ROMS_DIR" ] && [ "$ROMS_DIR" != "${PREFIX}/roms" ]; then
+    printf '  (ROMs in %s will be kept unless you delete them manually.)\n' "$ROMS_DIR"
+  fi
+  if is_interactive_tty; then
+    printf 'Proceed? [y/N] ' >/dev/tty
+    local yn=""
+    IFS= read -r yn </dev/tty || yn="n"
+    case "$yn" in
+      y|Y|yes|YES) ;;
+      *) info "Cancelled."; return 0 ;;
+    esac
+  fi
+  rm -f "$bin_link"
+  rm -rf "$PREFIX"
+  ok "Uninstalled sdl-kitty."
+}
+
+# ---------------------------------------------------------------------------
+# Bare `sdlk` (interactive launcher if Kitty TTY, else help)
+# ---------------------------------------------------------------------------
+usage() {
+  cat <<EOF
+${C_BOLD}sdlk${C_RESET} ${SDLK_VERSION} — Run SDL3 apps & MAME inside Kitty-capable terminals
+
+${C_BOLD}Usage:${C_RESET}
+  sdlk                         Interactive launcher (or help if non-TTY)
+  sdlk demo [name|--list]      Run bundled demos (fireworks, imgui, mouse_paint...)
+  sdlk mame [game] [args...]   Launch MAME in the terminal (-video soft -window)
+  sdlk mame-roms [opts|ids]    Download free legal arcade ROMs from mamedev.org
+  sdlk ask [--multi] Q A B...  Render an inline Dear ImGui radio/checkbox card
+  sdlk run <cmd> [args...]     Run any SDL3 binary with the Kitty video driver
+  sdlk doctor                  Probe terminal graphics/keyboard & MAME status
+  sdlk setup                   Interactive MAME + free ROMs setup wizard
+  sdlk uninstall               Remove local install
+  sdlk version                 Print version
+
+${C_BOLD}Examples:${C_RESET}
+  sdlk demo fireworks
+  sdlk mame-roms robby gridlee
+  sdlk mame robby
+  sdlk run ./my-sdl3-app
+EOF
+}
+
+cmd_launcher() {
+  if ! is_interactive_tty || ! probe_kitty_graphics; then
+    usage
+    return 0
+  fi
+
+  local ask_args=() actions=() r title rom_count=0
+  local mame_bin="${SDLK_MAME_BIN:-}"
+  [ -z "$mame_bin" ] && mame_bin="$(command -v mame 2>/dev/null || true)"
+
+  # Tab 1: MAME (all installed ROMs + download action)
+  ask_args+=(--tab "MAME")
+  for r in $(installed_roms); do
+    title="$(rom_title "$r")"
+    if [ "$title" != "$r" ]; then
+      ask_args+=("${title} [${r}]")
+    else
+      ask_args+=("${r}")
+    fi
+    actions+=("mame:${r}")
+    rom_count=$((rom_count + 1))
+  done
+  if [ "$rom_count" -eq 0 ] && [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
+    ask_args+=("Open MAME menu")
+    actions+=("mame:")
+  fi
+  ask_args+=("Download free MAME ROMs (mamedev.org)...")
+  actions+=("mame-roms")
+
+  # Tab 2: Built-in demos
+  local demo_added=0 entry id rest bin desc
+  for entry in "${DEMO_CATALOG[@]}"; do
+    id="${entry%%|*}"
+    rest="${entry#*|}"
+    bin="${rest%%|*}"
+    desc="${rest#*|}"
+    [ -x "${DEMOS_DIR}/${bin}" ] || continue
+    if [ "$demo_added" -eq 0 ]; then
+      ask_args+=(--tab "Demos")
+      demo_added=1
+    fi
+    ask_args+=("${id} — ${desc}")
+    actions+=("demo:${id}")
+  done
+
+  # Tab 3: Tools
+  ask_args+=(--tab "Tools")
+  ask_args+=("Download free MAME ROMs (mamedev.org)")
+  actions+=("mame-roms")
+  ask_args+=("Run diagnostics (sdlk doctor)")
+  actions+=("doctor")
+  ask_args+=("Run setup wizard (sdlk setup)")
+  actions+=("setup")
+
+  ui_ask_tabbed single "sdl-kitty (${SDLK_VERSION}) — pick a game, demo, or tool:" "${ask_args[@]}"
+  [ "$UI_RESULT" -eq 255 ] && return 0
+
+  local act="${actions[$UI_RESULT]}"
+  case "$act" in
+    mame:*)
+      local g="${act#mame:}"
+      [ -n "$g" ] && cmd_mame "$g" || cmd_mame
+      ;;
+    demo:*)     cmd_demo "${act#demo:}" ;;
+    mame-roms)  cmd_mame_roms ;;
+    doctor)     cmd_doctor ;;
+    setup)      cmd_setup ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Main dispatch
+# ---------------------------------------------------------------------------
+main() {
+  if [ $# -eq 0 ]; then
+    cmd_launcher
+    return $?
+  fi
+  local cmd="$1"
+  shift
+  case "$cmd" in
+    mame)               cmd_mame "$@" ;;
+    mame-roms)          cmd_mame_roms "$@" ;;
+    demo|demos)         cmd_demo "$@" ;;
+    ask)                cmd_ask "$@" ;;
+    run)                cmd_run "$@" ;;
+    --)                 cmd_run "$@" ;;
+    doctor|check)       cmd_doctor "$@" ;;
+    setup|init)         cmd_setup "$@" ;;
+    uninstall)          cmd_uninstall "$@" ;;
+    version|-v|--version) printf 'sdlk %s\n' "$SDLK_VERSION" ;;
+    help|-h|--help)     usage ;;
+    *)
+      err "Unknown command: ${cmd}"
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"
