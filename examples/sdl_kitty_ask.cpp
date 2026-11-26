@@ -25,6 +25,7 @@
 #include <SDL3/SDL.h>
 
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -580,14 +581,17 @@ int main(int argc, char **argv)
         std::string title = cfg.question;
         std::string status = "Starting...";
         float pct = 0.0f;
+        float display_pct = 0.0f;
         bool sub_active = false;
         float sub_pct = 0.0f;
+        float display_sub_pct = 0.0f;
         std::string sub_label;
         std::vector<std::string> logs;
         bool scroll_bottom = false;
         bool finished = false;
         bool had_error = false;
         Uint64 finished_at_ms = 0;
+        Uint64 last_tick_ms = SDL_GetTicks();
 
         const bool is_light = (theme_name == "light");
         const ImVec4 col_ok = is_light ? rgb_hex(0x1A7F37) : rgb_hex(0x73DACA);
@@ -616,10 +620,16 @@ int main(int argc, char **argv)
                 if (endp != p) {
                     if (v < 0.0f) {
                         sub_active = false;
+                        sub_pct = 0.0f;
+                        display_sub_pct = 0.0f;
                         sub_label.clear();
                     } else {
+                        const float next_sub = (v > 100.0f) ? 1.0f : (v / 100.0f);
+                        if (!sub_active || next_sub < sub_pct) {
+                            display_sub_pct = next_sub; /* new file reset: snap cleanly */
+                        }
                         sub_active = true;
-                        sub_pct = (v > 100.0f) ? 1.0f : (v / 100.0f);
+                        sub_pct = next_sub;
                         while (*endp == ' ') {
                             ++endp;
                         }
@@ -742,8 +752,39 @@ int main(int argc, char **argv)
             }
 
             pump_feed();
+
+            /* Smooth exponential ease-out interpolation from current to target %. */
+            {
+                const Uint64 now_ms = SDL_GetTicks();
+                float dt = (float)(now_ms - last_tick_ms) / 1000.0f;
+                last_tick_ms = now_ms;
+                if (dt < 0.0f) dt = 0.0f;
+                if (dt > 0.05f) dt = 0.05f;
+                const float alpha = 1.0f - std::exp(-10.0f * dt);
+
+                if (pct < display_pct) {
+                    display_pct = pct;
+                } else if (std::fabs(pct - display_pct) < 0.001f) {
+                    display_pct = pct;
+                } else {
+                    display_pct += (pct - display_pct) * alpha;
+                }
+
+                if (sub_active) {
+                    if (sub_pct < display_sub_pct) {
+                        display_sub_pct = sub_pct;
+                    } else if (std::fabs(sub_pct - display_sub_pct) < 0.001f) {
+                        display_sub_pct = sub_pct;
+                    } else {
+                        display_sub_pct += (sub_pct - display_sub_pct) * alpha;
+                    }
+                }
+            }
+
             if (finished && !cfg.wait_on_done && !had_error) {
-                if ((int)(SDL_GetTicks() - finished_at_ms) >= cfg.auto_close_ms) {
+                if (display_pct < 0.995f) {
+                    finished_at_ms = SDL_GetTicks();
+                } else if ((int)(SDL_GetTicks() - finished_at_ms) >= cfg.auto_close_ms) {
                     done = true;
                 }
             }
@@ -783,11 +824,11 @@ int main(int argc, char **argv)
             ImGui::Spacing();
 
             char pct_txt[32];
-            std::snprintf(pct_txt, sizeof(pct_txt), "%d%%", (int)(pct * 100.0f + 0.5f));
+            std::snprintf(pct_txt, sizeof(pct_txt), "%d%%", (int)(display_pct * 100.0f + 0.5f));
             ImGui::PushFont(nullptr, font_size * 0.88f);
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                   had_error ? col_err : (finished ? col_ok : theme.accent));
-            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 1.18f), pct_txt);
+            ImGui::ProgressBar(display_pct, ImVec2(-1.0f, font_size * 1.18f), pct_txt);
             ImGui::PopStyleColor();
             ImGui::PopFont();
 
@@ -797,11 +838,11 @@ int main(int argc, char **argv)
                 if (!sub_label.empty()) {
                     std::snprintf(sub_txt, sizeof(sub_txt), "%s", sub_label.c_str());
                 } else {
-                    std::snprintf(sub_txt, sizeof(sub_txt), "%d%%", (int)(sub_pct * 100.0f + 0.5f));
+                    std::snprintf(sub_txt, sizeof(sub_txt), "%d%%", (int)(display_sub_pct * 100.0f + 0.5f));
                 }
                 ImGui::PushFont(nullptr, font_size * 0.80f);
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, theme.heading);
-                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 1.08f), sub_txt);
+                ImGui::ProgressBar(display_sub_pct, ImVec2(-1.0f, font_size * 1.08f), sub_txt);
                 ImGui::PopStyleColor();
                 ImGui::PopFont();
             }
