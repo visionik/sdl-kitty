@@ -24,10 +24,14 @@
 
 #include <SDL3/SDL.h>
 
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 enum {
@@ -49,8 +53,12 @@ struct AskConfig {
     std::vector<AskTab> tabs;
     std::string out_path;
     std::string theme;
+    std::string feed_path;
     float font_size = 0.0f; /* 0 = auto from framebuffer height */
+    int auto_close_ms = 650;
     bool multi = false;
+    bool progress = false;
+    bool wait_on_done = false;
 };
 
 struct AskTheme {
@@ -233,14 +241,16 @@ static void apply_theme(ImGuiStyle &style, const AskTheme &t)
 static void usage(const char *argv0)
 {
     std::fprintf(stderr,
-                 "Usage: %s [--multi|-m] [--out FILE] [--font-size PX] [--theme NAME] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
+                 "Usage:\n"
+                 "  %s [--multi|-m] [--out FILE] [--font-size PX] [--theme NAME] \"Question\" [--tab \"Name\"] \"Opt1\" \"Opt2\" ...\n"
+                 "  %s --progress --feed FILE [--wait] [--auto-close MS] [--font-size PX] [--theme NAME] \"Title\"\n"
                  "  With --out FILE: up to %d options across any number of --tab groups;\n"
                  "    writes 0-based indices (one per line) to FILE, exits 0 (OK) or %d (cancel).\n"
                  "  Without --out: single-select 2–%d (exit 0..n-1), --multi 2–%d (bitmask 0..127).\n"
                  "  Themes: tokyo (default), catppuccin, nord, amber, light.\n"
                  "  Env: SDL_KITTY_ASK_THEME, SDL_KITTY_ASK_FONT_SIZE (px), SDL_KITTY_ASK_FONT (/path/to/font.ttf).\n"
                  "  Cancel / Esc: %d\n",
-                 argv0, kMaxFileOptions, kExitCancel,
+                 argv0, argv0, kMaxFileOptions, kExitCancel,
                  kMaxExitSingleOptions, kMaxExitMultiOptions, kExitCancel);
 }
 
@@ -253,6 +263,25 @@ static bool parse_args(int argc, char **argv, AskConfig *cfg)
         const char *a = argv[i];
         if (std::strcmp(a, "--multi") == 0 || std::strcmp(a, "-m") == 0) {
             cfg->multi = true;
+        } else if (std::strcmp(a, "--progress") == 0) {
+            cfg->progress = true;
+        } else if (std::strcmp(a, "--wait") == 0) {
+            cfg->wait_on_done = true;
+        } else if (std::strcmp(a, "--feed") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--feed requires a path\n");
+                return false;
+            }
+            cfg->feed_path = argv[++i];
+        } else if (std::strcmp(a, "--auto-close") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--auto-close requires milliseconds\n");
+                return false;
+            }
+            cfg->auto_close_ms = std::atoi(argv[++i]);
+            if (cfg->auto_close_ms < 0) {
+                cfg->auto_close_ms = 0;
+            }
         } else if (std::strcmp(a, "--out") == 0 || std::strcmp(a, "-o") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--out requires a path\n");
@@ -300,6 +329,17 @@ static bool parse_args(int argc, char **argv, AskConfig *cfg)
             }
             cfg->tabs[(size_t)cur_tab].indices.push_back(idx);
         }
+    }
+
+    if (cfg->progress) {
+        if (cfg->question.empty()) {
+            cfg->question = "Working...";
+        }
+        if (cfg->feed_path.empty()) {
+            std::fprintf(stderr, "--progress requires --feed FILE\n");
+            return false;
+        }
+        return true;
     }
 
     if (!have_question) {
@@ -389,7 +429,7 @@ int main(int argc, char **argv)
     const bool use_tabs = (ntabs > 1);
     std::vector<bool> selected((size_t)nopt, false);
     int radio = 0; /* global single-select index */
-    if (!cfg.multi) {
+    if (!cfg.multi && nopt > 0) {
         selected[0] = true;
     }
 
@@ -517,6 +557,326 @@ int main(int argc, char **argv)
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
+
+    if (cfg.progress) {
+        int feed_fd = open(cfg.feed_path.c_str(), O_RDONLY | O_NONBLOCK);
+        if (feed_fd < 0) {
+            std::fprintf(stderr, "failed to open --feed %s: %s\n",
+                         cfg.feed_path.c_str(), std::strerror(errno));
+            ImGui_ImplSDLRenderer3_Shutdown();
+            ImGui_ImplSDL3_Shutdown();
+            ImGui::DestroyContext();
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 2;
+        }
+        struct stat st;
+        const bool feed_is_fifo = (fstat(feed_fd, &st) == 0 && S_ISFIFO(st.st_mode));
+        bool seen_writer = false;
+        bool feed_eof = false;
+        std::string line_buf;
+
+        std::string title = cfg.question;
+        std::string status = "Starting...";
+        float pct = 0.0f;
+        bool sub_active = false;
+        float sub_pct = 0.0f;
+        std::string sub_label;
+        std::vector<std::string> logs;
+        bool scroll_bottom = false;
+        bool finished = false;
+        bool had_error = false;
+        Uint64 finished_at_ms = 0;
+
+        const bool is_light = (theme_name == "light");
+        const ImVec4 col_ok = is_light ? rgb_hex(0x1A7F37) : rgb_hex(0x73DACA);
+        const ImVec4 col_err = is_light ? rgb_hex(0xCF222E) : rgb_hex(0xF7768E);
+
+        auto handle_line = [&](const std::string &raw) {
+            std::string s = raw;
+            while (!s.empty() && (s.back() == '\r' || s.back() == '\n')) {
+                s.pop_back();
+            }
+            if (s.empty()) {
+                return;
+            }
+            if (s.rfind("log ", 0) == 0) {
+                logs.push_back(s.substr(4));
+                if (logs.size() > 500) {
+                    logs.erase(logs.begin());
+                }
+                scroll_bottom = true;
+            } else if (s.rfind("title ", 0) == 0) {
+                title = s.substr(6);
+            } else if (s.rfind("sub ", 0) == 0) {
+                const char *p = s.c_str() + 4;
+                char *endp = nullptr;
+                const float v = std::strtof(p, &endp);
+                if (endp != p) {
+                    if (v < 0.0f) {
+                        sub_active = false;
+                        sub_label.clear();
+                    } else {
+                        sub_active = true;
+                        sub_pct = (v > 100.0f) ? 1.0f : (v / 100.0f);
+                        while (*endp == ' ') {
+                            ++endp;
+                        }
+                        sub_label = endp;
+                    }
+                }
+            } else if (s == "done" || s.rfind("done ", 0) == 0) {
+                pct = 1.0f;
+                sub_active = false;
+                if (s.size() > 5) {
+                    status = s.substr(5);
+                } else {
+                    status = "Done";
+                }
+                if (!finished) {
+                    finished = true;
+                    finished_at_ms = SDL_GetTicks();
+                }
+            } else if (s == "error" || s.rfind("error ", 0) == 0) {
+                sub_active = false;
+                had_error = true;
+                if (s.size() > 6) {
+                    status = s.substr(6);
+                } else {
+                    status = "Failed";
+                }
+                if (!finished) {
+                    finished = true;
+                    finished_at_ms = SDL_GetTicks();
+                }
+            } else {
+                char *endp = nullptr;
+                const float v = std::strtof(s.c_str(), &endp);
+                if (endp != s.c_str() && (*endp == '\0' || *endp == ' ' || *endp == '%')) {
+                    float clamped = v;
+                    if (clamped < 0.0f) clamped = 0.0f;
+                    if (clamped > 100.0f) clamped = 100.0f;
+                    pct = clamped / 100.0f;
+                    if (*endp == '%') ++endp;
+                    while (*endp == ' ') ++endp;
+                    if (*endp != '\0') {
+                        status = endp;
+                    }
+                } else {
+                    status = s;
+                }
+            }
+        };
+
+        auto pump_feed = [&]() {
+            if (feed_eof || feed_fd < 0) {
+                return;
+            }
+            char tmp[4096];
+            for (;;) {
+                const ssize_t n = read(feed_fd, tmp, sizeof(tmp));
+                if (n > 0) {
+                    seen_writer = true;
+                    line_buf.append(tmp, (size_t)n);
+                    size_t nl;
+                    while ((nl = line_buf.find('\n')) != std::string::npos) {
+                        handle_line(line_buf.substr(0, nl));
+                        line_buf.erase(0, nl + 1);
+                    }
+                } else if (n == 0) {
+                    if (feed_is_fifo && seen_writer) {
+                        if (!line_buf.empty()) {
+                            handle_line(line_buf);
+                            line_buf.clear();
+                        }
+                        feed_eof = true;
+                        if (!finished) {
+                            finished = true;
+                            finished_at_ms = SDL_GetTicks();
+                            if (pct < 1.0f && !had_error) {
+                                pct = 1.0f;
+                            }
+                        }
+                    }
+                    break;
+                } else {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        seen_writer = true; /* FIFO has an open writer */
+                    }
+                    break;
+                }
+            }
+        };
+
+        bool done = false;
+        bool cancelled = false;
+        bool first_frame = true;
+        const ImVec4 clear_color = theme.bg;
+
+        while (!done) {
+            pump_feed();
+            SDL_Event event;
+            if (!first_frame) {
+                if (SDL_WaitEventTimeout(&event, 16)) {
+                    do {
+                        ImGui_ImplSDL3_ProcessEvent(&event);
+                        if (event.type == SDL_EVENT_QUIT ||
+                            (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+                             event.window.windowID == SDL_GetWindowID(window))) {
+                            cancelled = !finished;
+                            done = true;
+                        }
+                        if (event.type == SDL_EVENT_KEY_DOWN &&
+                            event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                            cancelled = !finished;
+                            done = true;
+                        }
+                    } while (SDL_PollEvent(&event));
+                }
+            } else {
+                first_frame = false;
+                while (SDL_PollEvent(&event)) {
+                    ImGui_ImplSDL3_ProcessEvent(&event);
+                }
+            }
+
+            pump_feed();
+            if (finished && !cfg.wait_on_done && !had_error) {
+                if ((int)(SDL_GetTicks() - finished_at_ms) >= cfg.auto_close_ms) {
+                    done = true;
+                }
+            }
+
+            ImGui_ImplSDLRenderer3_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+
+            const ImGuiViewport *vp = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(vp->WorkPos);
+            ImGui::SetNextWindowSize(vp->WorkSize);
+            ImGui::Begin("progress", nullptr,
+                         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoSavedSettings);
+
+            ImGui::PushFont(nullptr, font_size * 1.12f);
+            ImGui::PushStyleColor(ImGuiCol_Text, theme.heading);
+            ImGui::TextWrapped("%s", title.c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (had_error) {
+                ImGui::PushStyleColor(ImGuiCol_Text, col_err);
+                ImGui::TextWrapped("%s", status.c_str());
+                ImGui::PopStyleColor();
+            } else if (finished) {
+                ImGui::PushStyleColor(ImGuiCol_Text, col_ok);
+                ImGui::TextWrapped("%s", status.c_str());
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::TextWrapped("%s", status.c_str());
+            }
+            ImGui::Spacing();
+
+            char pct_txt[32];
+            std::snprintf(pct_txt, sizeof(pct_txt), "%d%%", (int)(pct * 100.0f + 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                                  had_error ? col_err : (finished ? col_ok : theme.accent));
+            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 1.15f), pct_txt);
+            ImGui::PopStyleColor();
+
+            if (sub_active) {
+                ImGui::Spacing();
+                char sub_txt[160];
+                if (!sub_label.empty()) {
+                    std::snprintf(sub_txt, sizeof(sub_txt), "%s", sub_label.c_str());
+                } else {
+                    std::snprintf(sub_txt, sizeof(sub_txt), "%d%%", (int)(sub_pct * 100.0f + 0.5f));
+                }
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, theme.heading);
+                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 0.85f), sub_txt);
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::Spacing();
+            const float footer_h = ImGui::GetFrameHeightWithSpacing() + 14.0f * ui_scale;
+            ImGui::BeginChild("progress_log", ImVec2(0.0f, -footer_h), ImGuiChildFlags_Borders);
+            for (size_t i = 0; i < logs.size(); ++i) {
+                const std::string &ln = logs[i];
+                bool colored = false;
+                if (ln.rfind("\xE2\x9C\x93", 0) == 0 || ln.rfind("+ ", 0) == 0) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_ok);
+                    colored = true;
+                } else if (ln.rfind("\xE2\x9C\x97", 0) == 0 || ln.rfind("! ", 0) == 0) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, col_err);
+                    colored = true;
+                } else if (ln.rfind("\xE2\x86\x93", 0) == 0 || ln.rfind("\xE2\x86\x92", 0) == 0) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, theme.heading);
+                    colored = true;
+                }
+                ImGui::TextWrapped("%s", ln.c_str());
+                if (colored) {
+                    ImGui::PopStyleColor();
+                }
+            }
+            if (scroll_bottom) {
+                ImGui::SetScrollHereY(1.0f);
+                scroll_bottom = false;
+            }
+            ImGui::EndChild();
+
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            const float btn_w = 110.0f * ui_scale;
+            if (finished) {
+                ImGui::PushStyleColor(ImGuiCol_Button, theme.accent);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, theme.accent_hover);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, theme.accent_active);
+                ImGui::PushStyleColor(ImGuiCol_Text, theme.accent_text);
+                if (ImGui::Button(had_error ? "Close" : "OK", ImVec2(btn_w, 0)) ||
+                    ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+                    ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) {
+                    done = true;
+                }
+                ImGui::PopStyleColor(4);
+                ImGui::SameLine();
+                ImGui::TextDisabled(had_error ? "  Enter or Esc to close"
+                                              : "  Complete · Enter or Esc to continue");
+            } else {
+                if (ImGui::Button("Cancel", ImVec2(btn_w, 0))) {
+                    cancelled = true;
+                    done = true;
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("  Esc to cancel");
+            }
+
+            ImGui::End();
+
+            ImGui::Render();
+            SDL_SetRenderDrawColorFloat(renderer, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+            SDL_RenderClear(renderer);
+            ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+            SDL_RenderPresent(renderer);
+        }
+
+        close(feed_fd);
+        ImGui_ImplSDLRenderer3_Shutdown();
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        if (cancelled) {
+            return kExitCancel;
+        }
+        return had_error ? 1 : 0;
+    }
 
     bool done = false;
     bool confirmed = false;

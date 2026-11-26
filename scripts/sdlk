@@ -357,6 +357,88 @@ run_imgui_ask() {
   return "$rc"
 }
 
+run_imgui_progress() {
+  local bin="${DEMOS_DIR}/sdl_kitty_ask"
+  [ -x "$bin" ] || return 200
+
+  local has_feed=0 a
+  for a in "$@"; do
+    [ "$a" = "--feed" ] && has_feed=1
+  done
+
+  local cols=80 rows=24 sz=""
+  sz="$(stty size </dev/tty 2>/dev/null || true)"
+  if [ -n "$sz" ]; then
+    rows="${sz%% *}"
+    cols="${sz##* }"
+  fi
+
+  local vp_col="${SDL_KITTY_VIEWPORT_COL:-3}"
+  local vp_row="${SDL_KITTY_VIEWPORT_ROW:-3}"
+  local vp_w="${SDL_KITTY_VIEWPORT_W:-$((cols - 4))}"
+  local vp_h="${SDL_KITTY_VIEWPORT_H:-20}"
+  [ -z "${SDL_KITTY_VIEWPORT_W:-}" ] && [ "$vp_w" -gt 96 ] && vp_w=96
+  [ "$vp_w" -lt 44 ] && vp_w=44
+  [ "$vp_h" -lt 14 ] && vp_h=14
+  if [ "$((vp_col + vp_w - 1))" -gt "$cols" ] && [ "$cols" -gt "$vp_col" ]; then
+    vp_w=$((cols - vp_col + 1))
+  fi
+  if [ "$((vp_row + vp_h - 1))" -gt "$rows" ] && [ "$rows" -gt "$((vp_row + 2))" ]; then
+    vp_h=$((rows - vp_row - 1))
+  fi
+
+  local fb_w=$((vp_w * 16))
+  local fb_h=$((vp_h * 32))
+  if [ "$fb_w" -gt 1600 ]; then
+    fb_h=$((fb_h * 1600 / fb_w))
+    fb_w=1600
+  fi
+  if [ "$fb_h" -gt 960 ]; then
+    fb_w=$((fb_w * 960 / fb_h))
+    fb_h=960
+  fi
+  [ "$fb_w" -lt 640 ] && fb_w=640
+  [ "$fb_h" -lt 448 ] && fb_h=448
+
+  local tmpdir="" fifo="" relay_pid=""
+  local extra_args=()
+  if [ "$has_feed" -eq 0 ]; then
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/sdlk-progress.XXXXXX")"
+    fifo="${tmpdir}/feed"
+    mkfifo "$fifo"
+    ( cat > "$fifo" 2>/dev/null ) &
+    relay_pid=$!
+    extra_args=(--feed "$fifo")
+  fi
+
+  local err_log="${SDL_KITTY_ASK_ERR:-/tmp/sdlk-ask.err}"
+  export_sdl_env
+  {
+    printf '\033[2J\033[H\033[?25l'
+    printf '\033[1;1H\033[1m sdlk \033[0m  progress  (Esc=cancel)'
+    printf '\033[H'
+  } >/dev/tty 2>/dev/null || true
+
+  : >"$err_log"
+  local rc=0
+  SDL_VIDEO_DRIVER="${SDL_VIDEO_DRIVER:-kitty}" \
+  SDL_RENDER_DRIVER="${SDL_RENDER_DRIVER:-software}" \
+  SDL_KITTY_ALTSCREEN="${SDL_KITTY_ALTSCREEN:-0}" \
+  SDL_KITTY_PLACE_CELLS="${SDL_KITTY_PLACE_CELLS:-1}" \
+  SDL_KITTY_VIEWPORT="${SDL_KITTY_VIEWPORT:-${vp_col},${vp_row},${vp_w},${vp_h}}" \
+  SDL_KITTY_FB_FIXED="${SDL_KITTY_FB_FIXED:-${fb_w}x${fb_h}}" \
+  SDL_KITTY_LEAVE_IMAGES="${SDL_KITTY_LEAVE_IMAGES:-0}" \
+    "$bin" --progress ${extra_args[@]+"${extra_args[@]}"} "$@" </dev/tty >/dev/tty 2>>"$err_log" || rc=$?
+
+  if [ -n "$relay_pid" ]; then
+    kill "$relay_pid" 2>/dev/null || true
+    wait "$relay_pid" 2>/dev/null || true
+  fi
+  [ -n "$tmpdir" ] && rm -rf "$tmpdir"
+  printf '\033[?25h\033[2J\033[H' >/dev/tty 2>/dev/null || true
+  return "$rc"
+}
+
 can_use_gui_prompt() {
   [ -z "${SDLK_NO_GUI_PROMPT:-}" ] &&
   [ -x "${DEMOS_DIR}/sdl_kitty_ask" ] &&
@@ -855,6 +937,12 @@ EOF
 
   local total="${#to_download[@]}"
   local idx=0 ok_count=0 first_id="" id
+
+  if can_use_gui_prompt; then
+    download_roms_graphical "${to_download[@]}" || true
+    return 0
+  fi
+
   printf '\n%sDownloading %d ROM(s) into %s%s\n' "$C_BOLD" "$total" "$ROMS_DIR" "$C_RESET"
   for id in "${to_download[@]}"; do
     idx=$((idx + 1))
@@ -872,6 +960,103 @@ EOF
     ok "Ready: ${ok_count}/${total} ROM(s) in ${ROMS_DIR}"
     info "Try playing now: ${C_BOLD}sdlk mame ${first_id}${C_RESET}"
   fi
+}
+
+download_roms_graphical() {
+  local total=$#
+  local idx=0 ok_count=0 fail_count=0 id title url dest tmp tmp_rc pct_start pct_end
+  mkdir -p "$ROMS_DIR"
+
+  {
+    printf '0 Preparing %d ROM(s)...\n' "$total"
+    for id in "$@"; do
+      idx=$((idx + 1))
+      title="$(rom_title "$id")"
+      url="$(rom_url "$id")"
+      dest="${ROMS_DIR}/${id}.zip"
+      tmp="${dest}.part"
+      pct_start=$(( (idx - 1) * 100 / total ))
+      pct_end=$(( idx * 100 / total ))
+
+      if [ -f "$dest" ]; then
+        printf '%d [%d/%d] %s (already installed)\n' "$pct_end" "$idx" "$total" "$title"
+        printf 'sub -1\n'
+        printf 'log ✓ %s (already installed)\n' "$title"
+        ok_count=$((ok_count + 1))
+        continue
+      fi
+
+      printf '%d [%d/%d] Downloading %s...\n' "$pct_start" "$idx" "$total" "$title"
+      printf 'sub 0 %s.zip (0%%)\n' "$id"
+      printf 'log ↓ Downloading %s...\n' "$title"
+
+      tmp_rc="${tmp}.rc"
+      rm -f "$tmp" "$tmp_rc"
+      if command -v curl >/dev/null 2>&1; then
+        ( curl -fL -# --retry 2 -o "$tmp" "$url" 2>&1; echo $? > "$tmp_rc" ) |
+          tr '\r' '\n' |
+          while IFS= read -r line; do
+            case "$line" in
+              *%*)
+                local p="${line%%%*}"
+                p="${p##* }"
+                p="${p%%.*}"
+                case "$p" in
+                  ''|*[!0-9]*) ;;
+                  *)
+                    [ "$p" -gt 100 ] && p=100
+                    printf 'sub %d %s.zip (%d%%)\n' "$p" "$id" "$p"
+                    ;;
+                esac
+                ;;
+            esac
+          done
+      elif command -v wget >/dev/null 2>&1; then
+        ( wget -q -O "$tmp" "$url"; echo $? > "$tmp_rc" )
+      else
+        echo 127 > "$tmp_rc"
+      fi
+
+      local dl_rc=1
+      [ -f "$tmp_rc" ] && dl_rc="$(cat "$tmp_rc" 2>/dev/null || echo 1)"
+      rm -f "$tmp_rc"
+
+      if [ "$dl_rc" -ne 0 ] || [ ! -f "$tmp" ]; then
+        rm -f "$tmp"
+        fail_count=$((fail_count + 1))
+        printf 'sub -1\n'
+        printf 'log ✗ Failed to download %s\n' "$title"
+        printf '%d [%d/%d] Failed: %s\n' "$pct_end" "$idx" "$total" "$title"
+        continue
+      fi
+
+      local magic=""
+      magic="$(LC_ALL=C head -c 2 "$tmp" 2>/dev/null || true)"
+      if [ "$magic" != "PK" ]; then
+        rm -f "$tmp"
+        fail_count=$((fail_count + 1))
+        printf 'sub -1\n'
+        printf 'log ✗ %s was not a valid zip archive\n' "$title"
+        printf '%d [%d/%d] Invalid zip: %s\n' "$pct_end" "$idx" "$total" "$title"
+        continue
+      fi
+
+      local bytes kb
+      bytes="$(wc -c < "$tmp" | tr -d ' ')"
+      kb=$(( (bytes + 1023) / 1024 ))
+      mv "$tmp" "$dest"
+      ok_count=$((ok_count + 1))
+      printf 'sub 100 %s.zip (%d KB)\n' "$id" "$kb"
+      printf 'log ✓ Saved %s (%d KB)\n' "$title" "$kb"
+      printf '%d [%d/%d] Saved %s\n' "$pct_end" "$idx" "$total" "$title"
+    done
+
+    if [ "$fail_count" -gt 0 ]; then
+      printf 'error Finished with %d error(s) (%d/%d ready)\n' "$fail_count" "$ok_count" "$total"
+    else
+      printf 'done Ready: %d/%d ROM(s) installed\n' "$ok_count" "$total"
+    fi
+  } | run_imgui_progress --auto-close 800 "Downloading MAME ROMs"
 }
 
 # ---------------------------------------------------------------------------
@@ -1051,11 +1236,15 @@ cmd_mame() {
 
   export_sdl_env
   local err_log="${SDLK_MAME_ERR:-/tmp/sdlk-mame.err}"
-  if [ "$err_log" = "-" ]; then
+  if [ "$err_log" = "-" ] && [ "${SDLK_IN_LAUNCHER:-0}" != "1" ]; then
     exec "$mame_bin" ${args[@]+"${args[@]}"} "$@"
   fi
   local rc=0
-  "$mame_bin" ${args[@]+"${args[@]}"} "$@" 2>"$err_log" || rc=$?
+  if [ "$err_log" = "-" ]; then
+    "$mame_bin" ${args[@]+"${args[@]}"} "$@" || rc=$?
+  else
+    "$mame_bin" ${args[@]+"${args[@]}"} "$@" 2>"$err_log" || rc=$?
+  fi
   if [ "$rc" -ne 0 ] && [ -s "$err_log" ]; then
     err "MAME exited with status ${rc}:"
     tail -n 15 "$err_log" >&2
@@ -1155,7 +1344,56 @@ cmd_demo() {
       ;;
   esac
   local err_log="${SDLK_DEMO_ERR:-/tmp/sdlk-demo.err}"
+  if [ "${SDLK_IN_LAUNCHER:-0}" = "1" ]; then
+    local rc=0
+    "$target_bin" "$@" 2>"$err_log" || rc=$?
+    return "$rc"
+  fi
   exec "$target_bin" "$@" 2>"$err_log"
+}
+
+# ---------------------------------------------------------------------------
+# sdlk progress — graphical Dear ImGui progress card fed via stdin or --feed
+# ---------------------------------------------------------------------------
+cmd_progress() {
+  if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    cat <<'EOF'
+Usage: producer | sdlk progress [--wait] [--auto-close MS] [--theme NAME] [--font-size PX] "Title"
+       sdlk progress --feed FILE [--wait] "Title"
+
+Render an inline Dear ImGui progress card driven by newline-delimited commands on stdin (or --feed):
+  <0..100> [status]      Update main progress bar (0-100%) and optional status text
+  sub <0..100> [label]   Show/update secondary progress bar (sub -1 hides it)
+  log <text>             Append line to scrollable log (leading ✓/✗/↓ color-coded)
+  title <text>           Update card heading
+  done [status]          Mark complete (100%); auto-closes unless --wait
+  error [status]         Mark failed and wait for Close/Esc
+
+Exit status: 0 on completion, 1 on error, 255 on Esc/Cancel.
+Falls back to plain terminal output when Kitty graphics are unavailable.
+EOF
+    return 0
+  fi
+
+  if can_use_gui_prompt; then
+    run_imgui_progress "$@"
+    return $?
+  fi
+
+  # Plain-TTY fallback: read line protocol from stdin and print cleanly.
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "log "*)   printf '  %s\n' "${line#log }" ;;
+      "title "*) printf '%s%s%s\n' "$C_BOLD" "${line#title }" "$C_RESET" ;;
+      "sub "*)   ;;
+      "done "*)  ok "${line#done }" ;;
+      "done")    ok "Done" ;;
+      "error "*) err "${line#error }" ;;
+      "error")   err "Failed" ;;
+      *)         printf '  %s\n' "$line" ;;
+    esac
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -1460,6 +1698,7 @@ ${C_BOLD}Usage:${C_RESET}
   sdlk mame [game] [args...]   Launch MAME in the terminal (-video soft -window)
   sdlk mame-roms [opts|ids]    Download free legal arcade ROMs from mamedev.org
   sdlk ask [--multi] Q A B...  Render an inline Dear ImGui radio/checkbox card
+  sdlk progress [opts] Title   Render an inline Dear ImGui progress card (reads stdin)
   sdlk run <cmd> [args...]     Run any SDL3 binary with the Kitty video driver
   sdlk doctor                  Probe terminal graphics/keyboard & MAME status
   sdlk setup                   Interactive MAME + free ROMs setup wizard
@@ -1480,64 +1719,84 @@ cmd_launcher() {
     return 0
   fi
 
-  local ask_args=() actions=() r title rom_count=0
   local mame_bin="${SDLK_MAME_BIN:-}"
   [ -z "$mame_bin" ] && mame_bin="$(command -v mame 2>/dev/null || true)"
 
-  # Tab 1: MAME (all installed ROMs + download action)
-  ask_args+=(--tab "MAME")
-  for r in $(installed_roms); do
-    title="$(rom_title "$r")"
-    ask_args+=("${title}")
-    actions+=("mame:${r}")
-    rom_count=$((rom_count + 1))
-  done
-  if [ "$rom_count" -eq 0 ] && [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
-    ask_args+=("Open MAME menu")
-    actions+=("mame:")
-  fi
-  ask_args+=("Download free MAME ROMs (mamedev.org)...")
-  actions+=("mame-roms")
+  SDLK_IN_LAUNCHER=1
+  export SDLK_IN_LAUNCHER
 
-  # Tab 2: Built-in demos
-  local demo_added=0 entry id rest bin desc
-  for entry in "${DEMO_CATALOG[@]}"; do
-    id="${entry%%|*}"
-    rest="${entry#*|}"
-    bin="${rest%%|*}"
-    desc="${rest#*|}"
-    [ -x "${DEMOS_DIR}/${bin}" ] || continue
-    if [ "$demo_added" -eq 0 ]; then
-      ask_args+=(--tab "Demos")
-      demo_added=1
+  while true; do
+    local ask_args=() actions=() r title rom_count=0
+
+    # Tab 1: MAME (all installed ROMs + download action — refreshed each loop!)
+    ask_args+=(--tab "MAME")
+    for r in $(installed_roms); do
+      title="$(rom_title "$r")"
+      ask_args+=("${title}")
+      actions+=("mame:${r}")
+      rom_count=$((rom_count + 1))
+    done
+    if [ "$rom_count" -eq 0 ] && [ -n "$mame_bin" ] && [ -x "$mame_bin" ]; then
+      ask_args+=("Open MAME menu")
+      actions+=("mame:")
     fi
-    ask_args+=("${id} — ${desc}")
-    actions+=("demo:${id}")
+    ask_args+=("Download free MAME ROMs (mamedev.org)...")
+    actions+=("mame-roms")
+
+    # Tab 2: Built-in demos
+    local demo_added=0 entry id rest bin desc
+    for entry in "${DEMO_CATALOG[@]}"; do
+      id="${entry%%|*}"
+      rest="${entry#*|}"
+      bin="${rest%%|*}"
+      desc="${rest#*|}"
+      [ -x "${DEMOS_DIR}/${bin}" ] || continue
+      if [ "$demo_added" -eq 0 ]; then
+        ask_args+=(--tab "Demos")
+        demo_added=1
+      fi
+      ask_args+=("${id} — ${desc}")
+      actions+=("demo:${id}")
+    done
+
+    # Tab 3: Tools
+    ask_args+=(--tab "Tools")
+    ask_args+=("Download free MAME ROMs (mamedev.org)")
+    actions+=("mame-roms")
+    ask_args+=("Run diagnostics (sdlk doctor)")
+    actions+=("doctor")
+    ask_args+=("Run setup wizard (sdlk setup)")
+    actions+=("setup")
+
+    ui_ask_tabbed single "sdl-kitty (${SDLK_VERSION}) — pick a game, demo, or tool:" "${ask_args[@]}"
+    [ "$UI_RESULT" -eq 255 ] && return 0
+
+    local act="${actions[$UI_RESULT]}"
+    case "$act" in
+      mame:*)
+        local g="${act#mame:}"
+        if [ -n "$g" ]; then
+          cmd_mame "$g" || true
+        else
+          cmd_mame || true
+        fi
+        ;;
+      demo:*)
+        cmd_demo "${act#demo:}" || true
+        ;;
+      mame-roms)
+        cmd_mame_roms || true
+        ;;
+      doctor)
+        cmd_doctor || true
+        printf '\n%sPress Enter to return to sdlk...%s' "$C_DIM" "$C_RESET" >/dev/tty
+        IFS= read -r _ </dev/tty || true
+        ;;
+      setup)
+        cmd_setup || true
+        ;;
+    esac
   done
-
-  # Tab 3: Tools
-  ask_args+=(--tab "Tools")
-  ask_args+=("Download free MAME ROMs (mamedev.org)")
-  actions+=("mame-roms")
-  ask_args+=("Run diagnostics (sdlk doctor)")
-  actions+=("doctor")
-  ask_args+=("Run setup wizard (sdlk setup)")
-  actions+=("setup")
-
-  ui_ask_tabbed single "sdl-kitty (${SDLK_VERSION}) — pick a game, demo, or tool:" "${ask_args[@]}"
-  [ "$UI_RESULT" -eq 255 ] && return 0
-
-  local act="${actions[$UI_RESULT]}"
-  case "$act" in
-    mame:*)
-      local g="${act#mame:}"
-      [ -n "$g" ] && cmd_mame "$g" || cmd_mame
-      ;;
-    demo:*)     cmd_demo "${act#demo:}" ;;
-    mame-roms)  cmd_mame_roms ;;
-    doctor)     cmd_doctor ;;
-    setup)      cmd_setup ;;
-  esac
 }
 
 # ---------------------------------------------------------------------------
@@ -1555,6 +1814,7 @@ main() {
     mame-roms)          cmd_mame_roms "$@" ;;
     demo|demos)         cmd_demo "$@" ;;
     ask)                cmd_ask "$@" ;;
+    progress)           cmd_progress "$@" ;;
     run)                cmd_run "$@" ;;
     --)                 cmd_run "$@" ;;
     doctor|check)       cmd_doctor "$@" ;;
