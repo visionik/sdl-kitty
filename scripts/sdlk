@@ -376,7 +376,7 @@ run_imgui_progress() {
   local vp_col="${SDL_KITTY_VIEWPORT_COL:-3}"
   local vp_row="${SDL_KITTY_VIEWPORT_ROW:-3}"
   local vp_w="${SDL_KITTY_VIEWPORT_W:-$((cols - 4))}"
-  local vp_h="${SDL_KITTY_VIEWPORT_H:-20}"
+  local vp_h="${SDL_KITTY_VIEWPORT_H:-28}"
   [ -z "${SDL_KITTY_VIEWPORT_W:-}" ] && [ "$vp_w" -gt 96 ] && vp_w=96
   [ "$vp_w" -lt 44 ] && vp_w=44
   [ "$vp_h" -lt 14 ] && vp_h=14

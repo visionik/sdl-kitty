@@ -786,7 +786,7 @@ int main(int argc, char **argv)
             std::snprintf(pct_txt, sizeof(pct_txt), "%d%%", (int)(pct * 100.0f + 0.5f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                   had_error ? col_err : (finished ? col_ok : theme.accent));
-            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 1.15f), pct_txt);
+            ImGui::ProgressBar(pct, ImVec2(-1.0f, font_size * 0.95f), pct_txt);
             ImGui::PopStyleColor();
 
             if (sub_active) {
@@ -798,13 +798,14 @@ int main(int argc, char **argv)
                     std::snprintf(sub_txt, sizeof(sub_txt), "%d%%", (int)(sub_pct * 100.0f + 0.5f));
                 }
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, theme.heading);
-                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 0.85f), sub_txt);
+                ImGui::ProgressBar(sub_pct, ImVec2(-1.0f, font_size * 0.72f), sub_txt);
                 ImGui::PopStyleColor();
             }
 
             ImGui::Spacing();
             const float footer_h = ImGui::GetFrameHeightWithSpacing() + 14.0f * ui_scale;
             ImGui::BeginChild("progress_log", ImVec2(0.0f, -footer_h), ImGuiChildFlags_Borders);
+            ImGui::PushFont(nullptr, font_size * 0.85f);
             for (size_t i = 0; i < logs.size(); ++i) {
                 const std::string &ln = logs[i];
                 bool colored = false;
@@ -823,6 +824,7 @@ int main(int argc, char **argv)
                     ImGui::PopStyleColor();
                 }
             }
+            ImGui::PopFont();
             if (scroll_bottom) {
                 ImGui::SetScrollHereY(1.0f);
                 scroll_bottom = false;
