@@ -1,5 +1,6 @@
 set(KITTY_RECT_SRC
-  "${CMAKE_SOURCE_DIR}/third_party/SDL/src/video/kitty/SDL_kittyrect.c")
+  "${CMAKE_SOURCE_DIR}/third_party/SDL/src/video/kitty/SDL_kittyrect.c"
+  "${CMAKE_SOURCE_DIR}/third_party/SDL/src/video/kitty/SDL_kittyparallel.c")
 
 add_executable(kitty_rect_utils_test
   kitty_rect_utils_test.c
@@ -8,6 +9,9 @@ target_compile_definitions(kitty_rect_utils_test PRIVATE KITTY_RECT_STANDALONE=1
 target_include_directories(kitty_rect_utils_test PRIVATE
   "${CMAKE_SOURCE_DIR}/third_party/SDL/src/video/kitty")
 target_link_libraries(kitty_rect_utils_test PRIVATE SDL3::SDL3)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(kitty_rect_utils_test PRIVATE pthread)
+endif()
 
 add_test(NAME kitty_rect_utils_test COMMAND kitty_rect_utils_test)
 

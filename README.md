@@ -20,13 +20,14 @@ sdlk setup
 The installer drops `sdlk` into your `PATH` (with a private `libSDL3` so it never conflicts with Homebrew or system SDL3), offers to install **MAME** if missing, and lets you pick free legal arcade ROMs directly from [mamedev.org/roms](https://www.mamedev.org/roms/):
 
 ```bash
-sdlk                  # interactive launcher (ImGui card inside your terminal)
-sdlk demo             # bundled demos: fireworks, Dear ImGui, mouse_paint, alpha_blit...
-sdlk mame-roms        # download free non-commercial arcade ROMs from mamedev.org
-sdlk mame robby       # play Robby Roto in your terminal (5=coin, 1=start, Esc=quit)
-sdlk ask "Pick?" A B  # inline Dear ImGui radio/checkbox card for shell scripts
-sdlk run ./my-sdl3    # run any SDL3 binary with SDL_VIDEO_DRIVER=kitty
-sdlk doctor           # probe Kitty graphics & keyboard support + MAME linkage
+sdlk                         # persistent interactive launcher (tabbed ImGui card; returns after actions)
+sdlk demo                    # bundled demos: fireworks, Dear ImGui, mouse_paint, alpha_blit...
+sdlk mame-roms               # download free non-commercial arcade ROMs from mamedev.org (graphical progress)
+sdlk mame robby              # play Robby Roto in your terminal (with HUD controls overlay; F1 toggles)
+sdlk ask "Pick?" A B         # inline Dear ImGui radio/checkbox card (Geist font, tokyo/preset themes)
+job | sdlk progress "Title"  # inline Dear ImGui animated progress card (dual bars + color-coded log)
+sdlk run ./my-sdl3           # run any SDL3 binary with SDL_VIDEO_DRIVER=kitty
+sdlk doctor                  # probe Kitty graphics & keyboard support + MAME linkage
 ```
 
 This repo is a meta-project: the `sdlk` CLI, examples, docs, terminal profiles, and an SDL3 submodule (`third_party/SDL` on branch `sdl-kitty-v0`) that contains the driver under `src/video/kitty/`.
@@ -46,11 +47,29 @@ Software-framebuffer path only (`GetWindowSurface` / `UpdateWindowSurface`). No 
 | Mouse (SGR 1006 / 1016) | yes |
 | Resize (`SIGWINCH`) | yes |
 | Per-terminal facts + tuning (TOML, compiled in) | yes (`config/terminals.toml` from [terminal-facts](https://github.com/visionik/terminal-facts), `config/sdl-kitty.toml`) |
+| Parallel RFC 1950 zlib + fused diff + async PTY | yes (Apple GCD on macOS, persistent pthread pool on Linux) |
+| Driver-level HUD toast (`SDL_KITTY_OVERLAY`) | yes (multi-line, fade, `toggle=F1`, live `file=` trigger) |
 | OpenGL / GPU | no |
+
+### Performance
+
+40-pass optimization campaign ([docs/perf-journal.md](docs/perf-journal.md)) measured end-to-end over a real `openpty()` PTY (Apple Silicon macOS, Release):
+
+| Workload | Baseline | Optimized | Speedup | Wire Saved |
+|---|---:|---:|---:|---:|
+| Static 720p (`tile-diff` skip) | 0.146 ms/f | **0.029 ms/f** | **5×** | — |
+| Sparse MAME 720p (`a=f` + `o=z`) | 5.244 ms/f | **0.046 ms/f** | **114×** | **-41%** |
+| 2-corner MAME 720p (multi-rect `a=f`) | 7.517 ms/f | **0.053 ms/f** | **142×** | **-97%** |
+| Scrolling MAME 720p (`o=z` parallel) | 7.481 ms/f | **0.423 ms/f** | **18×** | — |
+| Scrolling MAME 1080p (`o=z` parallel) | 16.881 ms/f | **0.758 ms/f** | **22×** | — |
+| Dear ImGui dirty 720p (`a=f` + `o=z`) | 7.473 ms/f | **0.048 ms/f** | **156×** | **-93%** |
+| Fireworks RGBA 720p (`a=f`) | 12.212 ms/f | **0.075 ms/f** | **163×** | **-97%** |
 
 See [CHANGELOG.md](CHANGELOG.md) for recent changes.
 
 ## Docs
+
+- [Performance optimization journal](docs/perf-journal.md) — 40-pass benchmark & architecture log
 
 - [Framebuffer placement, mouse, and Rex lessons](docs/framebuffer-placement-and-mouse.md)
 - [Terminal features & fixes](docs/terminals.md) — per-host matrix
@@ -171,6 +190,9 @@ On macOS, `DYLD_LIBRARY_PATH=…/build/third_party/SDL` also works for apps that
 |---|---|
 | `SDL_VIDEO_DRIVER=kitty` | Select this driver |
 | `SDL_KITTY_TRANSMIT=shm\|zlib\|direct` | Force transmit medium |
+| `SDL_KITTY_ZLIB_LEVEL=1..9` | Override zlib compression level (auto: 3 parallel / 1 serial; auto-picks 4 over `SSH_CONNECTION` for ~2× smaller wire) |
+| `SDL_KITTY_OVERLAY=SPEC` | Translucent HUD toast over any SDL3 app: `pos=bottom\|top\|center\|...;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;file=/path;theme=tokyo\|amber\|nord\|light;text=Line 1\nLine 2` |
+| `SDL_KITTY_ASK_THEME` / `FONT_SIZE` / `FONT` | Customize `sdlk ask` & `sdlk progress` (`tokyo`, `catppuccin`, `nord`, `amber`, `light`; default embedded Geist font) |
 | `SDL_KITTY_FB_MAX` / `FB_FIXED` | Cap or fix framebuffer size |
 | `SDL_KITTY_PLACE_ASPECT=1` | Letterbox the stretched FB in the pane, keeping its aspect ratio |
 | `SDL_KITTY_RESIZE_SETTLE_MS=N` | Refit after a resize only once the size has been still for N ms |

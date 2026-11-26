@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-26
+
+### Performance (40-pass optimization campaign — see `docs/perf-journal.md`)
+
+- **5×–163× end-to-end PTY speedups** and **93–97% wire reduction** on multi-region sparse/UI workloads (0.029 ms/f static 720p, 0.046–0.075 ms/f sparse/ImGui/Fireworks, 0.423 ms/f scrolling 720p zlib, 0.758 ms/f scrolling 1080p zlib).
+- **Portable multi-core parallelism (`SDL_kittyparallel`):** Apple GCD on macOS and persistent `pthread` worker pool on Linux powering:
+  - Up to 16-slice parallel RFC 1950 `o=z` zlib (`deflateInit2` raw `-15` + `adler32_combine()`), verified bit-exact by new permanent CTest `kitty_zlib_roundtrip_test`.
+  - Parallel fused NEON/scalar convert + multi-rect tile-diff with exact 2D pixel trimming (dropped `rgb_back`, halving scratch RAM).
+  - Parallel multi-rect `a=f` pack + zlib + Base64.
+- **Depth-1 double-buffered async PTY writer** (`KITTY_AsyncWriter`, up to 1 MiB stage buffer) overlapping frame N+1 CPU work with frame N kernel PTY drain, with strict flush barriers on control/delete/SHM/resize/teardown.
+- **Zero per-frame heap allocations** and once-per-init cached env/profile policy (`SDL_KITTY_ZLIB_LEVEL=1..9`, auto-picking level 4 over `SSH_CONNECTION` for ~2× smaller wire).
+- **ARM64 NEON & low-level optimizations:** 16-px NEON convert, 64-px clean-row scan, branchless 4-bit nibble movemask, 8-lane `KITTY_FastHash64` (39× vs FNV-1a), 2× unrolled NEON64 Base64 + L1/L2 streaming Base64, single-syscall `writev()` APC framing, and zero-copy `KITTY_PumpEvents` + inline SGR mouse parser.
+
+### Added (`sdlk`, HUD overlay & packaging)
+
+- **`sdlk` CLI & relocatable packaging (`scripts/install.sh`, `packaging/homebrew/sdl-kitty.rb`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`):**
+  - Persistent interactive launcher (`sdlk`) returning to the menu after actions and refreshing installed ROMs.
+  - `sdlk mame-roms` downloading free legal non-commercial ROMs directly from mamedev.org with graphical progress.
+  - `sdlk ask` upgraded with embedded anti-aliased **Geist** font, `tokyo` midnight default theme (`catppuccin`, `nord`, `amber`, `light` presets), `1:1` HiDPI card scaling, `--tab` collections, and `1.` numbering.
+  - **`sdlk progress`** reusable graphical ImGui progress card (dual smooth-interpolated bars, shimmer sweep + rotating spinner, color-coded vector-icon log, `Esc` cancel, plain-TTY fallback).
+- **Driver-level HUD toast overlay (`SDL_KITTY_OVERLAY`):**
+  - Renders translucent anti-aliased rounded multi-line overlays (`\n`, `\r`, `\r\n`, `\n\r`) over any SDL3 app with configurable `pos`, `delay`, `duration`, `fade`, `theme`, `scale`, `toggle=<key>` (e.g. `F1`), and live `file=/path` trigger.
+  - Wired into `sdlk mame` as a 30-second bottom controls toast (`F1` toggles visibility mid-game).
+- **`tests/kitty_perf_bench`** (11 microbenchmarks + 8 real `openpty()` PTY E2E benchmarks) and **`tests/kitty_zlib_roundtrip_test`** CTest.
+
 ### Changed
 
 - Terminal profiles split into **facts** and **tuning**:

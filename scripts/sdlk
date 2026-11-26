@@ -1234,7 +1234,7 @@ cmd_mame() {
 
   local mame_overlay="${SDL_KITTY_OVERLAY:-}"
   if [ -z "${SDLK_QUIET:-}" ] && [ -z "$mame_overlay" ] && is_interactive_tty; then
-    mame_overlay="pos=bottom;delay=0.3s;duration=30s;fade=0.6s;text=5=Coin · 1=Start · Arrows=Move\nZ/X=Fire · Tab=Menu · Esc=Quit"
+    mame_overlay="pos=bottom;delay=0.3s;duration=30s;fade=0.6s;toggle=F1;text=5=Coin · 1=Start · Arrows=Move · Z/X=Fire\nTab=Menu · F1=Toggle Help · Esc=Quit"
   fi
 
   export_sdl_env
