@@ -1181,6 +1181,11 @@ ensure_mame_cfg() {
                     KEYCODE_C OR KEYCODE_SPACE
                 </newseq>
             </port>
+            <port type="P1_PEDAL">
+                <newseq type="standard">
+                    KEYCODE_Z OR KEYCODE_LCONTROL
+                </newseq>
+            </port>
         </input>
     </system>
 </mameconfig>

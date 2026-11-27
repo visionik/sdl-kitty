@@ -102,7 +102,7 @@ static void test_rex_from_environment(void)
     /* Tuning. */
     expect_true(p->prefer_zlib, "rex prefer_zlib");
     expect_true(p->direct_af_when_shm, "rex direct_af_when_shm");
-    expect_float_near(p->af_max_coverage, 0.40f, "rex af_max_coverage");
+    expect_float_near(p->af_max_coverage, 0.90f, "rex af_max_coverage");
     expect_int((long long)p->af_max_pixels, 1920 * 1080, "rex af pixels");
     expect_int(p->coalesce_gap_px, 2, "rex coalesce");
     expect_int(p->default_fb_max_w, 1920, "rex fb w");

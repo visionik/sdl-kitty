@@ -32,7 +32,7 @@ Env vars (`SDL_KITTY_TRANSMIT`, `SDL_KITTY_FB_MAX`, …) always override.
 | **Prefer transmit** | **shm** if ok | **shm** if ok | **shm** if ok | **zlib** | **zlib** | **zlib** | **shm** if ok | **shm** if ok |
 | **Default FB max** | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 | shm 1920×1080; dir 1920×1080 |
 | **`a=f` probe** | needs OK | needs OK | skipped | silent = ok | skipped | skipped | skipped | silent = ok |
-| **`a=f` max coverage / pixels** | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 2,073,600 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 |
+| **`a=f` max coverage / pixels** | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.90 / 2,073,600 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 | 0.40 / 163,840 |
 | **Direct `a=f` when SHM** | yes | yes | no | yes | no | no | no | no |
 | **Coalesce gap** | 0 px | 2 px | 2 px | 2 px | 2 px | 2 px | 0 px | 0 px |
 | **APC chunk** | 261,888 B | 68,157,184 B | 68,157,184 B | 2 MiB | 2 MiB | 2 MiB | 2 MiB | 2 MiB |
