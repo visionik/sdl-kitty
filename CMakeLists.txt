@@ -17,6 +17,16 @@ option(SDL_KITTY_PERF_ACK "Compile optional PERF_ACK present waits" OFF)
 
 include(GNUInstallDirs)
 
+# Shared C99 Kitty pixel/protocol kernel (libkittyops), statically linked into libSDL3.
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/libkittyops/CMakeLists.txt")
+  set(KITTYOPS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+  set(KITTYOPS_BUILD_STATIC ON CACHE BOOL "" FORCE)
+  set(KITTYOPS_BUILD_TESTS ON CACHE BOOL "" FORCE)
+  set(KITTYOPS_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+  set(KITTYOPS_PREFER_STATIC_DEPS ON CACHE BOOL "" FORCE)
+  add_subdirectory(third_party/libkittyops)
+endif()
+
 # Build SDL3 with the Kitty video driver enabled (sources live in the submodule).
 set(SDL_KITTY ON CACHE BOOL "Use Kitty graphics protocol video driver" FORCE)
 set(SDL_SHARED ON CACHE BOOL "" FORCE)

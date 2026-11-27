@@ -11,3 +11,6 @@
 [submodule "third_party/sdl2-compat"]
 	path = third_party/sdl2-compat
 	url = https://github.com/libsdl-org/sdl2-compat.git
+[submodule "third_party/libkittyops"]
+	path = third_party/libkittyops
+	url = https://github.com/visionik/libkittyops.git
